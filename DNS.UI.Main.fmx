@@ -1,0 +1,754 @@
+object MainForm: TMainForm
+  Left = 0
+  Top = 0
+  Caption = 'Vultr DNS Manager'
+  ClientHeight = 774
+  ClientWidth = 900
+  Position = ScreenCenter
+  FormFactor.Width = 320
+  FormFactor.Height = 480
+  FormFactor.Devices = [Desktop]
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  DesignerMasterStyle = 0
+  object MainLayout: TLayout
+    Align = Client
+    Size.Width = 900.000000000000000000
+    Size.Height = 774.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 0
+    object HeaderLayout: TLayout
+      Align = Top
+      Size.Width = 900.000000000000000000
+      Size.Height = 56.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 0
+      object HeaderRect: TRectangle
+        Align = Client
+        Fill.Color = claDeepskyblue
+        Size.Width = 900.000000000000000000
+        Size.Height = 56.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Kind = None
+        object AppTitle: TLabel
+          Align = Left
+          StyledSettings = [Family, FontColor]
+          Margins.Left = 16.000000000000000000
+          Margins.Top = 8.000000000000000000
+          Margins.Bottom = 8.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 8.000000000000000000
+          Size.Width = 260.000000000000000000
+          Size.Height = 40.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 18.000000000000000000
+          TextSettings.FontColor = claWhite
+          Text = 'Vultr DNS Manager'
+        end
+      end
+    end
+    object ContentLayout: TLayout
+      Align = Client
+      Size.Width = 900.000000000000000000
+      Size.Height = 662.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 1
+      object TabControl: TTabControl
+        Align = Client
+        Size.Width = 900.000000000000000000
+        Size.Height = 662.000000000000000000
+        Size.PlatformDefault = False
+        TabIndex = 1
+        TabPosition = Top
+        Sizes = (
+          900s
+          636s
+          900s
+          636s)
+        object TabZones: TTabItem
+          CustomIcon = <
+            item
+            end>
+          TextSettings.Trimming = None
+          IsSelected = False
+          Size.Width = 52.000000000000000000
+          Size.Height = 26.000000000000000000
+          Size.PlatformDefault = False
+          StyleLookup = ''
+          TabOrder = 0
+          Text = 'Zones'
+          ExplicitSize.cx = 50.000000000000000000
+          ExplicitSize.cy = 50.000000000000000000
+          object ZonesLayout: TLayout
+            Align = Client
+            Size.Width = 900.000000000000000000
+            Size.Height = 636.000000000000000000
+            Size.PlatformDefault = False
+            TabOrder = 0
+            object ZonesToolbar: TLayout
+              Align = Top
+              Padding.Left = 8.000000000000000000
+              Padding.Top = 8.000000000000000000
+              Padding.Right = 8.000000000000000000
+              Padding.Bottom = 8.000000000000000000
+              Size.Width = 900.000000000000000000
+              Size.Height = 48.000000000000000000
+              Size.PlatformDefault = False
+              object btnRefreshZones: TButton
+                Align = Left
+                Margins.Right = 8.000000000000000000
+                Position.X = 8.000000000000000000
+                Position.Y = 8.000000000000000000
+                Size.Width = 96.000000000000000000
+                Size.Height = 32.000000000000000000
+                Size.PlatformDefault = False
+                Text = 'Refresh'
+                TextSettings.Trimming = None
+              end
+              object btnAddZone: TButton
+                Align = Left
+                Margins.Right = 8.000000000000000000
+                Position.X = 112.000000000000000000
+                Position.Y = 8.000000000000000000
+                Size.Width = 96.000000000000000000
+                Size.Height = 32.000000000000000000
+                Size.PlatformDefault = False
+                Text = 'Add Zone'
+                TextSettings.Trimming = None
+                OnClick = btnAddZoneClick
+              end
+              object btnDeleteZone: TButton
+                Align = Left
+                Position.X = 216.000000000000000000
+                Position.Y = 8.000000000000000000
+                Size.Width = 96.000000000000000000
+                Size.Height = 32.000000000000000000
+                Size.PlatformDefault = False
+                Text = 'Delete'
+                TextSettings.Trimming = None
+                OnClick = btnDeleteZoneClick
+              end
+            end
+            object ZonesList: TListView
+              ItemAppearanceClassName = 'TListItemAppearance'
+              ItemEditAppearanceClassName = 'TListItemShowCheckAppearance'
+              HeaderAppearanceClassName = 'TListHeaderObjects'
+              FooterAppearanceClassName = 'TListHeaderObjects'
+              Align = Client
+              Size.Width = 900.000000000000000000
+              Size.Height = 588.000000000000000000
+              Size.PlatformDefault = False
+              OnItemClick = ZonesListItemClick
+            end
+          end
+        end
+        object TabRecords: TTabItem
+          CustomIcon = <
+            item
+            end>
+          TextSettings.Trimming = None
+          IsSelected = True
+          Size.Width = 62.000000000000000000
+          Size.Height = 26.000000000000000000
+          Size.PlatformDefault = False
+          StyleLookup = ''
+          TabOrder = 0
+          Text = 'Records'
+          ExplicitSize.cx = 50.000000000000000000
+          ExplicitSize.cy = 50.000000000000000000
+          object RecordsLayout: TLayout
+            Align = Client
+            Size.Width = 900.000000000000000000
+            Size.Height = 636.000000000000000000
+            Size.PlatformDefault = False
+            TabOrder = 0
+            object RecordsToolbar: TLayout
+              Align = Top
+              Padding.Left = 8.000000000000000000
+              Padding.Top = 8.000000000000000000
+              Padding.Right = 8.000000000000000000
+              Padding.Bottom = 8.000000000000000000
+              Size.Width = 900.000000000000000000
+              Size.Height = 84.000000000000000000
+              Size.PlatformDefault = False
+              object btnBackToZones: TButton
+                Align = Left
+                Margins.Right = 8.000000000000000000
+                Position.X = 8.000000000000000000
+                Position.Y = 34.000000000000000000
+                Size.Width = 80.000000000000000000
+                Size.Height = 42.000000000000000000
+                Size.PlatformDefault = False
+                Text = 'Back'
+                TextSettings.Trimming = None
+                OnClick = btnBackToZonesClick
+              end
+              object btnRefreshRecords: TButton
+                Align = Left
+                Margins.Right = 8.000000000000000000
+                Position.X = 96.000000000000000000
+                Position.Y = 34.000000000000000000
+                Size.Width = 88.000000000000000000
+                Size.Height = 42.000000000000000000
+                Size.PlatformDefault = False
+                Text = 'Refresh'
+                TextSettings.Trimming = None
+                OnClick = btnRefreshRecordsClick
+              end
+              object btnAddRecord: TButton
+                Align = Left
+                Margins.Right = 8.000000000000000000
+                Position.X = 192.000000000000000000
+                Position.Y = 34.000000000000000000
+                Size.Width = 72.000000000000000000
+                Size.Height = 42.000000000000000000
+                Size.PlatformDefault = False
+                Text = 'Add'
+                TextSettings.Trimming = None
+                OnClick = btnAddRecordClick
+              end
+              object btnEditRecord: TButton
+                Align = Left
+                Margins.Right = 8.000000000000000000
+                Position.X = 272.000000000000000000
+                Position.Y = 34.000000000000000000
+                Size.Width = 72.000000000000000000
+                Size.Height = 42.000000000000000000
+                Size.PlatformDefault = False
+                Text = 'Edit'
+                TextSettings.Trimming = None
+                OnClick = btnEditRecordClick
+              end
+              object btnDeleteRecord: TButton
+                Align = Left
+                Position.X = 352.000000000000000000
+                Position.Y = 34.000000000000000000
+                Size.Width = 80.000000000000000000
+                Size.Height = 42.000000000000000000
+                Size.PlatformDefault = False
+                Text = 'Delete'
+                TextSettings.Trimming = None
+                OnClick = btnDeleteRecordClick
+              end
+              object RecordTypeFilter: TComboBox
+                Align = Right
+                Margins.Left = 8.000000000000000000
+                Margins.Right = 8.000000000000000000
+                Position.X = 724.000000000000000000
+                Position.Y = 34.000000000000000000
+                Size.Width = 160.000000000000000000
+                Size.Height = 42.000000000000000000
+                Size.PlatformDefault = False
+                OnChange = RecordTypeFilterChange
+              end
+              object SearchEdit: TEdit
+                Touch.InteractiveGestures = [LongTap, DoubleTap]
+                Align = Right
+                Position.X = 508.000000000000000000
+                Position.Y = 34.000000000000000000
+                Margins.Right = 8.000000000000000000
+                Size.Width = 200.000000000000000000
+                Size.Height = 42.000000000000000000
+                Size.PlatformDefault = False
+                TextPrompt = 'Search...'
+              end
+              object SearchButton: TSpeedButton
+                Align = Right
+                Position.X = 428.000000000000000000
+                Position.Y = 34.000000000000000000
+                Size.Width = 80.000000000000000000
+                Size.Height = 42.000000000000000000
+                Size.PlatformDefault = False
+                Text = 'Search'
+                TextSettings.Trimming = None
+                OnClick = SearchButtonClick
+              end
+              object CurrentZoneLabel: TLabel
+                Align = Top
+                Margins.Left = 4.000000000000000000
+                Margins.Top = 2.000000000000000000
+                Position.X = 12.000000000000000000
+                Position.Y = 10.000000000000000000
+                Size.Width = 880.000000000000000000
+                Size.Height = 24.000000000000000000
+                Size.PlatformDefault = False
+                Text = 'Zone:'
+              end
+            end
+            object RecordsList: TListView
+              ItemAppearanceClassName = 'TListItemAppearance'
+              ItemEditAppearanceClassName = 'TListItemShowCheckAppearance'
+              HeaderAppearanceClassName = 'TListHeaderObjects'
+              FooterAppearanceClassName = 'TListHeaderObjects'
+              Align = Client
+              Size.Width = 900.000000000000000000
+              Size.Height = 552.000000000000000000
+              Size.PlatformDefault = False
+              OnItemClick = RecordsListItemClick
+            end
+          end
+        end
+      end
+    end
+    object StatusBar: TLayout
+      Align = Bottom
+      Position.Y = 718.000000000000000000
+      Size.Width = 900.000000000000000000
+      Size.Height = 56.000000000000000000
+      Size.PlatformDefault = False
+      object StatusRect: TRectangle
+        Align = Client
+        Fill.Color = xFFF3F3F3
+        Size.Width = 900.000000000000000000
+        Size.Height = 56.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Kind = None
+        object StatusLabel: TLabel
+          Align = Client
+          Margins.Left = 12.000000000000000000
+          Margins.Top = 8.000000000000000000
+          Margins.Right = 12.000000000000000000
+          Margins.Bottom = 8.000000000000000000
+          Size.Width = 876.000000000000000000
+          Size.Height = 40.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object ActivityIndicator: TAniIndicator
+          Align = Right
+          Size.Width = 40.000000000000000000
+          Size.Height = 40.000000000000000000
+          Size.PlatformDefault = False
+          Visible = False
+        end
+      end
+    end
+    object SetupPanel: TRectangle
+      Fill.Color = claWhite
+      Position.X = 120.000000000000000000
+      Position.Y = -240.000000000000000000
+      Size.Width = 660.000000000000000000
+      Size.Height = 240.000000000000000000
+      Size.PlatformDefault = False
+      Stroke.Color = xFFCCCCCC
+      Visible = False
+      XRadius = 8.000000000000000000
+      YRadius = 8.000000000000000000
+      object SetupLayout: TLayout
+        Align = Client
+        Padding.Left = 16.000000000000000000
+        Padding.Top = 16.000000000000000000
+        Padding.Right = 16.000000000000000000
+        Padding.Bottom = 16.000000000000000000
+        Size.Width = 660.000000000000000000
+        Size.Height = 240.000000000000000000
+        Size.PlatformDefault = False
+        object SetupTitle: TLabel
+          Align = Top
+          Position.X = 16.000000000000000000
+          Position.Y = 16.000000000000000000
+          Size.Width = 628.000000000000000000
+          Size.Height = 28.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 16.000000000000000000
+          Text = 'API Setup'
+        end
+        object ApiKeyEdit: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Align = Top
+          Position.X = 16.000000000000000000
+          Position.Y = 52.000000000000000000
+          Margins.Top = 8.000000000000000000
+          Size.Width = 628.000000000000000000
+          Size.Height = 36.000000000000000000
+          Size.PlatformDefault = False
+          TextPrompt = 'Enter Vultr API Key'
+        end
+        object btnSaveApiKey: TButton
+          Align = Bottom
+          Margins.Top = 8.000000000000000000
+          Margins.Right = 96.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 152.000000000000000000
+          Size.Width = 532.000000000000000000
+          Size.Height = 36.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Save'
+          TextSettings.Trimming = None
+          OnClick = btnSaveApiKeyClick
+        end
+        object btnCancelSetup: TButton
+          Align = Bottom
+          Position.X = 16.000000000000000000
+          Position.Y = 188.000000000000000000
+          Size.Width = 628.000000000000000000
+          Size.Height = 36.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Cancel'
+          TextSettings.Trimming = None
+          OnClick = btnCancelSetupClick
+        end
+      end
+    end
+    object ZoneAddPanel: TRectangle
+      Fill.Color = claWhite
+      Position.X = 140.000000000000000000
+      Position.Y = -220.000000000000000000
+      Size.Width = 620.000000000000000000
+      Size.Height = 220.000000000000000000
+      Size.PlatformDefault = False
+      Stroke.Color = xFFCCCCCC
+      Visible = False
+      XRadius = 8.000000000000000000
+      YRadius = 8.000000000000000000
+      object ZoneAddLayout: TLayout
+        Align = Client
+        Padding.Left = 16.000000000000000000
+        Padding.Top = 16.000000000000000000
+        Padding.Right = 16.000000000000000000
+        Padding.Bottom = 16.000000000000000000
+        Size.Width = 620.000000000000000000
+        Size.Height = 220.000000000000000000
+        Size.PlatformDefault = False
+        object ZoneAddTitle: TLabel
+          Align = Top
+          Position.X = 16.000000000000000000
+          Position.Y = 16.000000000000000000
+          Size.Width = 588.000000000000000000
+          Size.Height = 28.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 16.000000000000000000
+          Text = 'Add Zone'
+        end
+        object lblZoneDomain: TLabel
+          Align = Top
+          Margins.Top = 8.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 52.000000000000000000
+          Size.Width = 588.000000000000000000
+          Size.Height = 20.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Domain'
+        end
+        object edtZoneDomain: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Align = Top
+          Position.X = 16.000000000000000000
+          Position.Y = 76.000000000000000000
+          Margins.Top = 4.000000000000000000
+          Size.Width = 588.000000000000000000
+          Size.Height = 36.000000000000000000
+          Size.PlatformDefault = False
+          TextPrompt = 'example.com'
+        end
+        object btnSaveZone: TButton
+          Align = Bottom
+          Margins.Top = 8.000000000000000000
+          Margins.Right = 96.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 132.000000000000000000
+          Size.Width = 492.000000000000000000
+          Size.Height = 36.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Save'
+          TextSettings.Trimming = None
+          OnClick = btnSaveZoneClick
+        end
+        object btnCancelZone: TButton
+          Align = Bottom
+          Position.X = 16.000000000000000000
+          Position.Y = 168.000000000000000000
+          Size.Width = 588.000000000000000000
+          Size.Height = 36.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Cancel'
+          TextSettings.Trimming = None
+          OnClick = btnCancelZoneClick
+        end
+      end
+      object ZoneAddShadow: TShadowEffect
+        Distance = 6.000000000000000000
+        Direction = 45.000000000000000000
+        Softness = 0.400000005960464500
+        Opacity = 0.400000005960464500
+        ShadowColor = claBlack
+      end
+    end
+    object RecordEditPanel: TRectangle
+      Fill.Color = claWhite
+      Position.X = 100.000000000000000000
+      Position.Y = -360.000000000000000000
+      Size.Width = 700.000000000000000000
+      Size.Height = 360.000000000000000000
+      Size.PlatformDefault = False
+      Stroke.Color = xFFCCCCCC
+      Visible = False
+      XRadius = 8.000000000000000000
+      YRadius = 8.000000000000000000
+      object RecordEditLayout: TLayout
+        Align = Client
+        Padding.Left = 16.000000000000000000
+        Padding.Top = 16.000000000000000000
+        Padding.Right = 16.000000000000000000
+        Padding.Bottom = 16.000000000000000000
+        Size.Width = 700.000000000000000000
+        Size.Height = 360.000000000000000000
+        Size.PlatformDefault = False
+        object RecordEditTitle: TLabel
+          Align = Top
+          Position.X = 16.000000000000000000
+          Position.Y = 16.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 28.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 16.000000000000000000
+          Text = 'Record Editor'
+        end
+        object lblRecordName: TLabel
+          Align = Top
+          Margins.Top = 6.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 50.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 20.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Name'
+        end
+        object edtRecordName: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Align = Top
+          Position.X = 16.000000000000000000
+          Position.Y = 72.000000000000000000
+          Margins.Top = 2.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 32.000000000000000000
+          Size.PlatformDefault = False
+          TextPrompt = 'www'
+        end
+        object lblRecordType: TLabel
+          Align = Top
+          Margins.Top = 6.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 110.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 20.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Type'
+        end
+        object cmbRecordType: TComboBox
+          Align = Top
+          Margins.Top = 2.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 132.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 32.000000000000000000
+          Size.PlatformDefault = False
+          OnChange = cmbRecordTypeChange
+        end
+        object lblRecordValue: TLabel
+          Align = Top
+          Margins.Top = 6.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 170.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 20.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Value'
+        end
+        object edtRecordValue: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Align = Top
+          Position.X = 16.000000000000000000
+          Position.Y = 192.000000000000000000
+          Margins.Top = 2.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 32.000000000000000000
+          Size.PlatformDefault = False
+          TextPrompt = 'value'
+        end
+        object lblRecordTTL: TLabel
+          Align = Top
+          Margins.Top = 6.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 230.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 20.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'TTL'
+        end
+        object edtRecordTTL: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Align = Top
+          Text = '3600'
+          Position.X = 16.000000000000000000
+          Position.Y = 252.000000000000000000
+          Margins.Top = 2.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 32.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object lblRecordPriority: TLabel
+          Align = Top
+          Margins.Top = 6.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 290.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 20.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Priority'
+        end
+        object edtRecordPriority: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Align = Top
+          Text = '10'
+          Position.X = 16.000000000000000000
+          Position.Y = 312.000000000000000000
+          Margins.Top = 2.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 32.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object lblRecordWeight: TLabel
+          Align = Top
+          Margins.Top = 6.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 350.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 20.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Weight (SRV)'
+        end
+        object edtRecordWeight: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Align = Top
+          Text = '0'
+          Position.X = 16.000000000000000000
+          Position.Y = 372.000000000000000000
+          Margins.Top = 2.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 32.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object lblRecordPort: TLabel
+          Align = Top
+          Margins.Top = 6.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 410.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 20.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Port (SRV)'
+        end
+        object edtRecordPort: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Align = Top
+          Text = '0'
+          Position.X = 16.000000000000000000
+          Position.Y = 432.000000000000000000
+          Margins.Top = 2.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 32.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object lblRecordFlags: TLabel
+          Align = Top
+          Margins.Top = 6.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 470.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 20.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Flags (CAA)'
+        end
+        object edtRecordFlags: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Align = Top
+          Text = '0'
+          Position.X = 16.000000000000000000
+          Position.Y = 492.000000000000000000
+          Margins.Top = 2.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 32.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object lblRecordTag: TLabel
+          Align = Top
+          Margins.Top = 6.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 530.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 20.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Tag (CAA)'
+        end
+        object edtRecordTag: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Align = Top
+          Position.X = 16.000000000000000000
+          Position.Y = 552.000000000000000000
+          Margins.Top = 2.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 32.000000000000000000
+          Size.PlatformDefault = False
+          TextPrompt = 'issue, iodef, etc.'
+        end
+        object btnSaveRecord: TButton
+          Align = Bottom
+          Margins.Top = 8.000000000000000000
+          Margins.Right = 100.000000000000000000
+          Position.X = 16.000000000000000000
+          Position.Y = 272.000000000000000000
+          Size.Width = 568.000000000000000000
+          Size.Height = 36.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Save'
+          TextSettings.Trimming = None
+          OnClick = btnSaveRecordClick
+        end
+        object btnCancelRecord: TButton
+          Align = Bottom
+          Position.X = 16.000000000000000000
+          Position.Y = 308.000000000000000000
+          Size.Width = 668.000000000000000000
+          Size.Height = 36.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Cancel'
+          TextSettings.Trimming = None
+          OnClick = btnCancelRecordClick
+        end
+      end
+      object RecordEditShadow: TShadowEffect
+        Distance = 6.000000000000000000
+        Direction = 45.000000000000000000
+        Softness = 0.400000005960464500
+        Opacity = 0.400000005960464500
+        ShadowColor = claBlack
+      end
+    end
+  end
+  object SlideIn: TFloatAnimation
+    Duration = 0.300000011920929000
+    Interpolation = Quadratic
+    PropertyName = 'Position.Y'
+    StartValue = 0.000000000000000000
+    StopValue = 0.000000000000000000
+  end
+  object SlideOut: TFloatAnimation
+    Duration = 0.300000011920929000
+    Interpolation = Quadratic
+    PropertyName = 'Position.Y'
+    StartValue = 0.000000000000000000
+    StopValue = 0.000000000000000000
+  end
+  object FadeIn: TFloatAnimation
+    Duration = 0.200000002980232200
+    PropertyName = 'Opacity'
+    StartValue = 0.000000000000000000
+    StopValue = 1.000000000000000000
+  end
+  object FadeOut: TFloatAnimation
+    Duration = 0.200000002980232200
+    PropertyName = 'Opacity'
+    StartValue = 1.000000000000000000
+    StopValue = 0.000000000000000000
+  end
+end
