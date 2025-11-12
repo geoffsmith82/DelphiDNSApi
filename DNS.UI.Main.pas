@@ -135,7 +135,7 @@ type
     procedure FormDestroy(Sender: TObject);
     procedure btnSaveApiKeyClick(Sender: TObject);
     procedure btnCancelSetupClick(Sender: TObject);
-//    procedure btnRefreshZonesClick(Sender: TObject);
+    procedure btnRefreshZonesClick(Sender: TObject);
     procedure btnAddZoneClick(Sender: TObject);
     procedure btnDeleteZoneClick(Sender: TObject);
     procedure btnSaveZoneClick(Sender: TObject);
@@ -605,6 +605,11 @@ procedure TMainForm.btnRefreshRecordsClick(Sender: TObject);
 begin
   if FCurrentZone <> '' then
     LoadRecords(FCurrentZone);
+end;
+
+procedure TMainForm.btnRefreshZonesClick(Sender: TObject);
+begin
+  LoadZones;
 end;
 
 procedure TMainForm.btnAddRecordClick(Sender: TObject);

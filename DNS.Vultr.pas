@@ -487,8 +487,7 @@ begin
   end;
 end;
 
-function TVultrDNSProvider.UpdateRecord(const ADomain: string;
-  ARecord: TDNSRecord): Boolean;
+function TVultrDNSProvider.UpdateRecord(const ADomain: string; ARecord: TDNSRecord): Boolean;
 var
   LPayload: TJSONObject;
   LResponse: TJSONValue;

@@ -104,6 +104,7 @@ object MainForm: TMainForm
                 Size.PlatformDefault = False
                 Text = 'Refresh'
                 TextSettings.Trimming = None
+                OnClick = btnRefreshZonesClick
               end
               object btnAddZone: TButton
                 Align = Left
