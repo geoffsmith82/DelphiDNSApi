@@ -11,6 +11,7 @@ uses
   System.Generics.Collections,
   System.Threading,
   System.StrUtils,
+  System.Math,
   FMX.Types,
   FMX.Controls,
   FMX.Forms,
@@ -80,6 +81,7 @@ type
     // API Setup Panel
     SetupPanel: TRectangle;
     SetupLayout: TLayout;
+    SetupScrollBox: TVertScrollBox;
     SetupTitle: TLabel;
     ApiKeyEdit: TEdit;
     btnSaveApiKey: TButton;
@@ -88,6 +90,7 @@ type
     // Record Edit Panel
     RecordEditPanel: TRectangle;
     RecordEditLayout: TLayout;
+    RecordEditScrollBox: TVertScrollBox;
     RecordEditTitle: TLabel;
     edtRecordName: TEdit;
     cmbRecordType: TComboBox;
@@ -114,6 +117,7 @@ type
     // Add Zone
     ZoneAddPanel: TRectangle;
     ZoneAddLayout: TLayout;
+    ZoneAddScrollBox: TVertScrollBox;
     ZoneAddTitle: TLabel;
     edtZoneDomain: TEdit;
     lblZoneDomain: TLabel;
@@ -754,6 +758,9 @@ begin
     edtRecordTag.Visible := RecType.RequiresTag;
 
     edtRecordValue.TextPrompt := RecType.GetExampleValue;
+
+    RecordEditLayout.Height := btnCancelRecord.Position.Y + btnCancelRecord.Height + 10;
+    RecordEditPanel.Height := Min(577, RecordEditLayout.Height + 40);
   end;
 end;
 
