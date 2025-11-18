@@ -35,6 +35,7 @@ uses
   FMX.Effects,
   DNS.Base,
   DNS.Vultr,
+  DNS.DigitalOcean,
   DNS.Helpers;
 
 type

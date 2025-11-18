@@ -43,7 +43,7 @@ object MainForm: TMainForm
           Size.PlatformDefault = False
           TextSettings.Font.Size = 18.000000000000000000
           TextSettings.FontColor = claWhite
-          Text = 'Vultr DNS Manager'
+          Text = 'Delphi DNS Manager'
         end
       end
     end
