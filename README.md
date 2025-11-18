@@ -59,9 +59,15 @@ This project is being expanded to support additional DNS APIs. Planned providers
 | **Cloudflare DNS** | ⏳ UNTESTED |
 | **AWS Route53** | ⏳ UNTESTED |
 | **Google Cloud DNS** | ⏳ UNTESTED |
+| **GoDaddy** | ⏳ PLANNED |
+| **Namecheap** | ⏳ PLANNED |
+| **VentraIP (AU)** | ⏳ PLANNED |
+| **BinaryLane (AU)** | ⏳ PLANNED |
+| **IBM Cloud DNS** | ⏳ PLANNED |
+| **PowerDNS** | ⏳ PLANNED |
+| **OpenStack Designate** | ⏳ PLANNED |
 
-
-Each provider will implement a shared base class (`TBaseDNSProvider`) to ensure consistency across operations like listing zones, managing records, and authentication.
+Each provider will implement a shared base class (`TBaseDNSProvider`) to ensure consistency across operations like listing zones, managing records, and authentication. With all the above providers Implemented, it should provide over 90% of the market - according to ChatGPT. A few Australian ones are planned - because I am from there!
 
 ## TODO
  - Bunny.net, Cloudflare, AWS Route 53 and Google Cloud DNS have been implemented, but currently have not been tested.
