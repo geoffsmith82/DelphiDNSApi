@@ -1,6 +1,6 @@
 # Delphi DNS API Library & Demonstration App
 
-A **Delphi FMX application** for managing DNS zones and records via cloud provider APIs. The core of this project is a **Delphi DNS API library** that provides a consistent interface to multiple DNS provider APIs, with the FMX app serving primarily as a demonstration and test tool for the API layer. The initial release supports **Vultr Cloud DNS**, with a modular architecture designed to support additional providers such as **Cloudflare**, **AWS Route53**, **Google Cloud DNS**, and others in future versions.
+A **Delphi FMX application** for managing DNS zones and records via cloud provider APIs. The core of this project is a **Delphi DNS API library** that provides a consistent interface to multiple DNS provider APIs, with the FMX app serving primarily as a demonstration and test tool for the API layer. The initial release supports **Vultr Cloud DNS**, **DigitalOcean DNS** and **Microsoft Azure DNS** with a modular architecture designed to support additional providers such as **Cloudflare**, **AWS Route53**, **Google Cloud DNS**, and others in future versions.
 
 ---
 
@@ -14,20 +14,6 @@ A **Delphi FMX application** for managing DNS zones and records via cloud provid
 - **Modular provider system** to support multiple DNS APIs.
 - **Modern FMX UI** with animated modal panels and responsive layouts.
 - **Cross-platform support** — Windows, macOS, and mobile.
-
----
-
-## 🧩 Components Overview
-
-| Component | Purpose |
-|------------|----------|
-| **MainForm** | Main application window hosting all layouts and controls. |
-| **TabControl** | Switches between *Zones* and *Records* views. |
-| **ZonesList / RecordsList** | Displays DNS zones and records retrieved from the selected provider. |
-| **RecordEditPanel / ZoneAddPanel** | Modal-style panels for creating or editing zones and records. |
-| **SetupPanel** | Used for API key configuration. |
-| **SlideIn / SlideOut / FadeIn / FadeOut** | Form-level animations for panel transitions. |
-| **StatusBar** | Displays current status messages and background task indicators. |
 
 ---
 
@@ -54,7 +40,7 @@ A **Delphi FMX application** for managing DNS zones and records via cloud provid
 
 1. Open the project in **Delphi 11+**.
 2. Run the application.
-3. When prompted, enter your **Vultr API key** (or another provider key, when available).
+3. When prompted, enter your **API key** for the appropriate DNS provider.
 4. Manage zones and records via the intuitive tabbed interface.
 5. Use the record and zone panels to create or modify entries.
 
@@ -67,11 +53,12 @@ This project is being expanded to support additional DNS APIs. Planned providers
 | Provider | Status |
 |-----------|---------|
 | **Vultr DNS** | ✅ Implemented |
+| **DigitalOcean DNS** | ✅ Implemented |
+| **Microsoft Azure DNS** | ✅ Implemented |
 | **Cloudflare DNS** | ⏳ Planned |
 | **AWS Route53** | ⏳ Planned |
-| **Microsoft Azure DNS** | ⏳ Planned |
 | **Google Cloud DNS** | ⏳ Planned |
-| **DigitalOcean DNS** | ⏳ Planned |
+
 
 Each provider will implement a shared interface (`IDNSProvider`) to ensure consistency across operations like listing zones, managing records, and authentication.
 
@@ -95,6 +82,8 @@ Each provider will implement a shared interface (`IDNSProvider`) to ensure consi
 | `DNS.UI.Main.fmx` | UI layout definition for the FMX form. |
 | `DNS.Base.pas` | Defines abstract interfaces and shared models for DNS providers. |
 | `DNS.Vultr.pas` | Implements the Vultr-specific API provider. |
+| `DNS.DigitalOcean.pas` | Implements the DigitalOcean-specific API provider. |
+| `DNS.Azure.pas` | Implements the Microsoft Azure-specific API provider. |
 | `DNS.Helpers.pas` | Utility functions for JSON parsing and REST handling. |
 
 ---
