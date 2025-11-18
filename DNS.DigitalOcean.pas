@@ -433,15 +433,13 @@ var
   LObj: TJSONObject;
 begin
   Result := nil;
-  LResponse := ExecuteRequest(rmGET,
-    Format('/domains/%s/records/%s', [ADomain, ARecordId]));
+  LResponse := ExecuteRequest(rmGET, Format('/domains/%s/records/%s', [ADomain, ARecordId]));
   try
     if Assigned(LResponse) and (LResponse is TJSONObject) and
        TJSONObject(LResponse).TryGetValue<TJSONObject>('domain_record', LObj) then
       Result := ParseRecord(LObj)
     else
-      raise EDNSRecordNotFound.CreateFmt(
-        'Record "%s" not found in domain "%s"', [ARecordId, ADomain]);
+      raise EDNSRecordNotFound.CreateFmt('Record "%s" not found in domain "%s"', [ARecordId, ADomain]);
   finally
     FreeAndNil(LResponse);
   end;

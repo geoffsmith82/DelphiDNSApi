@@ -1,4 +1,4 @@
-program DNSTest;
+program DNSUI;
 
 uses
   System.StartUpCopy,
@@ -8,7 +8,10 @@ uses
   DNS.Vultr in 'DNS.Vultr.pas',
   DNS.DigitalOcean in 'DNS.DigitalOcean.pas',
   DNS.Azure in 'DNS.Azure.pas',
-  DNS.UI.Main in 'DNS.UI.Main.pas';
+  DNS.UI.Main in 'DNS.UI.Main.pas',
+  DNS.Cloudflare in 'DNS.Cloudflare.pas',
+  DNS.Google in 'DNS.Google.pas',
+  DNS.Bunny in 'DNS.Bunny.pas';
 
 {$R *.res}
 

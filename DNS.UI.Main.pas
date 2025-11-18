@@ -34,9 +34,11 @@ uses
   FMX.Ani,
   FMX.Effects,
   DNS.Base,
-  DNS.Vultr,
-  DNS.DigitalOcean,
   DNS.Azure,
+  DNS.Cloudflare,
+  DNS.DigitalOcean,
+  DNS.Google,
+  DNS.Vultr,
   DNS.Helpers;
 
 type

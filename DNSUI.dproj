@@ -4,10 +4,10 @@
         <AppType>Application</AppType>
         <Config Condition="'$(Config)'==''">Debug</Config>
         <FrameworkType>FMX</FrameworkType>
-        <MainSource>DNSTest.dpr</MainSource>
+        <MainSource>DNSUI.dpr</MainSource>
         <Platform Condition="'$(Platform)'==''">Win64</Platform>
         <ProjectGuid>{CCEA2E9D-3741-49F6-816C-4DB92B7B55EB}</ProjectGuid>
-        <ProjectName Condition="'$(ProjectName)'==''">DNSTest</ProjectName>
+        <ProjectName Condition="'$(ProjectName)'==''">DNSUI</ProjectName>
         <ProjectVersion>20.3</ProjectVersion>
         <TargetedPlatforms>693395</TargetedPlatforms>
     </PropertyGroup>
@@ -89,7 +89,7 @@
         <Base>true</Base>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base)'!=''">
-        <SanitizedProjectName>DNSTest</SanitizedProjectName>
+        <SanitizedProjectName>DNSUI</SanitizedProjectName>
         <AUP_ACCESS_COARSE_LOCATION>true</AUP_ACCESS_COARSE_LOCATION>
         <AUP_ACCESS_FINE_LOCATION>true</AUP_ACCESS_FINE_LOCATION>
         <AUP_CALL_PHONE>true</AUP_CALL_PHONE>
@@ -299,6 +299,9 @@
         <DCCReference Include="DNS.DigitalOcean.pas"/>
         <DCCReference Include="DNS.Azure.pas"/>
         <DCCReference Include="DNS.UI.Main.pas"/>
+        <DCCReference Include="DNS.Cloudflare.pas"/>
+        <DCCReference Include="DNS.Google.pas"/>
+        <DCCReference Include="DNS.Bunny.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
@@ -317,7 +320,7 @@
         <BorlandProject>
             <Delphi.Personality>
                 <Source>
-                    <Source Name="MainSource">DNSTest.dpr</Source>
+                    <Source Name="MainSource">DNSUI.dpr</Source>
                 </Source>
             </Delphi.Personality>
             <Deployment Version="5">
@@ -336,15 +339,15 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="Win64\Debug\DNSTest.exe" Configuration="Debug" Class="ProjectOutput">
+                <DeployFile LocalName="Win64\Debug\DNSUI.exe" Configuration="Debug" Class="ProjectOutput">
                     <Platform Name="Win64">
-                        <RemoteName>DNSTest.exe</RemoteName>
+                        <RemoteName>DNSUI.exe</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="Win64\Debug\DNSTest.rsm" Configuration="Debug" Class="DebugSymbols">
+                <DeployFile LocalName="Win64\Debug\DNSUI.rsm" Configuration="Debug" Class="DebugSymbols">
                     <Platform Name="Win64">
-                        <RemoteName>DNSTest.rsm</RemoteName>
+                        <RemoteName>DNSUI.rsm</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
