@@ -61,7 +61,6 @@ This project is being expanded to support additional DNS APIs. Planned providers
 | **Google Cloud DNS** | ⏳ UNTESTED |
 | **GoDaddy** | ⏳ PLANNED |
 | **Namecheap** | ⏳ PLANNED |
-| **VentraIP (AU)** | ⏳ PLANNED |
 | **BinaryLane (AU)** | ⏳ PLANNED |
 | **IBM Cloud DNS** | ⏳ PLANNED |
 | **PowerDNS** | ⏳ PLANNED |

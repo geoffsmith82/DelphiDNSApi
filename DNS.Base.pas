@@ -239,15 +239,15 @@ procedure TDNSRecord.FromJSON(AJson: TJSONObject);
 var
   LTypeStr: string;
 begin
-  if AJson.TryGetValue<string>('id', FId) then ;
-  if AJson.TryGetValue<string>('name', FName) then ;
-  if AJson.TryGetValue<string>('value', FValue) then ;
-  if AJson.TryGetValue<Integer>('ttl', FTTL) then ;
-  if AJson.TryGetValue<Integer>('priority', FPriority) then ;
-  if AJson.TryGetValue<Integer>('weight', FWeight) then ;
-  if AJson.TryGetValue<Integer>('port', FPort) then ;
-  if AJson.TryGetValue<Integer>('flags', FFlags) then ;
-  if AJson.TryGetValue<string>('tag', FTag) then ;
+  AJson.TryGetValue<string>('id', FId);
+  AJson.TryGetValue<string>('name', FName);
+  AJson.TryGetValue<string>('value', FValue);
+  AJson.TryGetValue<Integer>('ttl', FTTL);
+  AJson.TryGetValue<Integer>('priority', FPriority);
+  AJson.TryGetValue<Integer>('weight', FWeight);
+  AJson.TryGetValue<Integer>('port', FPort);
+  AJson.TryGetValue<Integer>('flags', FFlags);
+  AJson.TryGetValue<string>('tag', FTag);
 
   if AJson.TryGetValue<string>('type', LTypeStr) then
   begin

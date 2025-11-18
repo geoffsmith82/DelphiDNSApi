@@ -32,8 +32,6 @@ type
     function BuildCanonicalRequest(const AMethod: string; const ACanonicalUri, ACanonicalQuery, ACanonicalHeaders, ASignedHeaders, APayloadHash: string): string;
     function BuildStringToSign(const ARequestDateTime, ACredentialScope, AHashedCanonicalRequest: string): string;
 
-    function MethodToString(AMethod: TRESTRequestMethod): string;
-
     procedure SignRequest(const AMethod: TRESTRequestMethod; const AResource: string);
   protected
     procedure SetAuthHeaders; override;
@@ -42,7 +40,7 @@ type
     function ParseRecordType(const ATypeStr: string): TDNSRecordType; override;
 
     function ParseRecord(AJson: TJSONObject): TDNSRecord; override;
-    function RecordToJSON(ARecord: TDNSRecord; const AAction: string = 'UPSERT'): TJSONObject;
+    function RecordToJSON(ARecord: TDNSRecord; const AAction: string = 'UPSERT'): TJSONObject; reintroduce;
     function ParseZone(AJson: TJSONObject): TDNSZone; override;
   public
     constructor Create(const AAwsAccessKey, AAwsSecretKey: string; const ARegion: string = 'us-east-1'); reintroduce;
@@ -91,19 +89,6 @@ end;
 function TRoute53DNSProvider.ISO8601Date(const ADT: TDateTime): string;
 begin
   Result := FormatDateTime('yyyymmdd', ADT);
-end;
-
-function TRoute53DNSProvider.MethodToString(AMethod: TRESTRequestMethod): string;
-begin
-  case AMethod of
-    rmGET:    Result := 'GET';
-    rmPOST:   Result := 'POST';
-    rmPUT:    Result := 'PUT';
-    rmDELETE: Result := 'DELETE';
-    rmPATCH:  Result := 'PATCH';
-  else
-    Result := 'GET';
-  end;
 end;
 
 function TRoute53DNSProvider.HmacSHA256(const AKey: TBytes; const AData: string): TBytes;
@@ -181,7 +166,7 @@ begin
   CredentialScope := DateStamp + '/' + FRegion + '/route53/aws4_request';
 
   CanonicalRequest := BuildCanonicalRequest(
-    MethodToString(AMethod),
+    RESTRequestMethodToString(AMethod),
     UriPath, QueryString, CanonicalHeaders, SignedHeaders, PayloadHash);
 
   HashedCanonicalRequest := THashSHA2.GetHashString(CanonicalRequest, SHA256);
@@ -240,7 +225,7 @@ end;
 
 function TRoute53DNSProvider.ParseRecord(AJson: TJSONObject): TDNSRecord;
 var
-  LName, LType, LValue: string;
+  LName, LType: string;
   LTTL: Int64;
   LRecords: TJSONArray;
 begin

@@ -194,7 +194,7 @@ type
     function CreateProviderFromCurrentSettings: Boolean;
 
     procedure LoadApiKey;
-    procedure SaveApiKey(const AKey: string);
+    procedure SaveApiKey;
     procedure ShowSetupPanel;
     procedure HideSetupPanel;
     procedure ShowRecordEditPanel(ARecord: TDNSRecord = nil);
@@ -419,7 +419,7 @@ end;
 
 
 
-procedure TMainForm.SaveApiKey(const AKey: string);
+procedure TMainForm.SaveApiKey;
 var
   Ini: TIniFile;
 begin
@@ -575,7 +575,7 @@ begin
   end;
 
   // Save credentials to INI
-  SaveApiKey('');
+  SaveApiKey;
 
   // remove old provider
   FreeAndNil(FProvider);
