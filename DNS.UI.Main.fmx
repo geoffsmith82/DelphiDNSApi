@@ -370,7 +370,11 @@ object MainForm: TMainForm
             Items.Strings = (
               'DigitalOcean'
               'Vultr'
-              'Azure')
+              'Azure'
+              'Bunny.net'
+              'AWS Route 53'
+              'Google DNS'
+              'Cloudflare')
             Margins.Top = 4.000000000000000000
             Position.Y = 66.000000000000000000
             Size.Width = 628.000000000000000000

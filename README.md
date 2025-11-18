@@ -55,12 +55,18 @@ This project is being expanded to support additional DNS APIs. Planned providers
 | **Vultr DNS** | ✅ Implemented |
 | **DigitalOcean DNS** | ✅ Implemented |
 | **Microsoft Azure DNS** | ✅ Implemented |
-| **Cloudflare DNS** | ⏳ Planned |
-| **AWS Route53** | ⏳ Planned |
-| **Google Cloud DNS** | ⏳ Planned |
+| **Bunny.net DNS** | ⏳ UNTESTED |
+| **Cloudflare DNS** | ⏳ UNTESTED |
+| **AWS Route53** | ⏳ UNTESTED |
+| **Google Cloud DNS** | ⏳ UNTESTED |
 
 
-Each provider will implement a shared interface (`IDNSProvider`) to ensure consistency across operations like listing zones, managing records, and authentication.
+Each provider will implement a shared base class (`TBaseDNSProvider`) to ensure consistency across operations like listing zones, managing records, and authentication.
+
+## TODO
+ - Bunny.net, Cloudflare, AWS Route 53 and Google Cloud DNS have been implemented, but currently have not been tested.
+ - Improve handling of Authentication / handle OAuth authentication better on providers that use it.
+ - Create Unit tests that test the different record types as well as the different operations add/update/delete
 
 ---
 
@@ -88,9 +94,9 @@ Each provider will implement a shared interface (`IDNSProvider`) to ensure consi
 
 ---
 
-## 🧪 Future Enhancements
+## 🧪 Possible Future Enhancements
 
-- Multi-provider support (Cloudflare, AWS, Google, etc.)
+- More Multi-provider support (PowerDNS, GoDaddy, Name.com etc.)
 - Unified configuration for multiple API keys.
 - Record type-specific validation and editing interfaces.
 - DNS import/export (BIND or CSV format).

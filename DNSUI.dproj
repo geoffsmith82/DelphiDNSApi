@@ -301,6 +301,7 @@
         <DCCReference Include="DNS.UI.Main.pas"/>
         <DCCReference Include="DNS.Cloudflare.pas"/>
         <DCCReference Include="DNS.Google.pas"/>
+        <DCCReference Include="DNS.Route53.pas"/>
         <DCCReference Include="DNS.Bunny.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>

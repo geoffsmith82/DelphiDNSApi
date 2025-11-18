@@ -11,6 +11,7 @@ uses
   DNS.UI.Main in 'DNS.UI.Main.pas',
   DNS.Cloudflare in 'DNS.Cloudflare.pas',
   DNS.Google in 'DNS.Google.pas',
+  DNS.Route53 in 'DNS.Route53.pas',
   DNS.Bunny in 'DNS.Bunny.pas';
 
 {$R *.res}

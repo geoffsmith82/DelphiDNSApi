@@ -71,6 +71,7 @@ type
   public
     constructor Create;
     destructor Destroy; override;
+    function Clone: TDNSZone;
 
     property Id: string read FId write FId;
     property Domain: string read FDomain write FDomain;
@@ -135,18 +136,15 @@ type
     function DeleteZone(const ADomain: string): Boolean; virtual; abstract;
 
     // DNS Record operations
-    function ListRecords(const ADomain: string;
-      ARecordType: TDNSRecordType = drtA): TObjectList<TDNSRecord>; virtual; abstract;
+    function ListRecords(const ADomain: string; ARecordType: TDNSRecordType = drtA): TObjectList<TDNSRecord>; virtual; abstract;
     function GetRecord(const ADomain, ARecordId: string): TDNSRecord; virtual; abstract;
     function CreateRecord(const ADomain: string; ARecord: TDNSRecord): TDNSRecord; virtual; abstract;
     function UpdateRecord(const ADomain: string; ARecord: TDNSRecord): Boolean; virtual; abstract;
     function DeleteRecord(const ADomain, ARecordId: string): Boolean; virtual; abstract;
 
     // Bulk operations (optional implementation)
-    function CreateRecordsBulk(const ADomain: string;
-      ARecords: TObjectList<TDNSRecord>): Boolean; virtual;
-    function DeleteRecordsBulk(const ADomain: string;
-      ARecordIds: TArray<string>): Boolean; virtual;
+    function CreateRecordsBulk(const ADomain: string; ARecords: TObjectList<TDNSRecord>): Boolean; virtual;
+    function DeleteRecordsBulk(const ADomain: string; ARecordIds: TArray<string>): Boolean; virtual;
 
     // Validation methods
     function ValidateRecord(ARecord: TDNSRecord): Boolean; virtual;
@@ -258,6 +256,16 @@ begin
 end;
 
 { TDNSZone }
+
+function TDNSZone.Clone: TDNSZone;
+begin
+  Result := TDNSZone.Create;
+  Result.Id := Self.Id;
+  Result.Domain := Self.Domain;
+  Result.CreatedAt := Self.CreatedAt;
+  Result.UpdatedAt := Self.UpdatedAt;
+  Result.NameServers.Assign(Self.NameServers);
+end;
 
 constructor TDNSZone.Create;
 begin
@@ -418,8 +426,7 @@ begin
   else Result := drtA; // Default
 end;
 
-function TBaseDNSProvider.CreateRecordsBulk(const ADomain: string;
-  ARecords: TObjectList<TDNSRecord>): Boolean;
+function TBaseDNSProvider.CreateRecordsBulk(const ADomain: string; ARecords: TObjectList<TDNSRecord>): Boolean;
 var
   LRecord: TDNSRecord;
 begin
@@ -436,8 +443,7 @@ begin
   end;
 end;
 
-function TBaseDNSProvider.DeleteRecordsBulk(const ADomain: string;
-  ARecordIds: TArray<string>): Boolean;
+function TBaseDNSProvider.DeleteRecordsBulk(const ADomain: string; ARecordIds: TArray<string>): Boolean;
 var
   LId: string;
 begin

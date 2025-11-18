@@ -35,14 +35,16 @@ uses
   FMX.Effects,
   DNS.Base,
   DNS.Azure,
+  DNS.Bunny,
   DNS.Cloudflare,
   DNS.DigitalOcean,
   DNS.Google,
+  DNS.Route53,
   DNS.Vultr,
   DNS.Helpers;
 
 type
-  TDNSProviderType = (dpDigitalOcean, dpVultr, dpAzure);
+  TDNSProviderType = (dpAzure, dpBunny, dpCloudflare, dpDigitalOcean, dpGoogle, dpRoute53, dpVultr);
 
   TMainForm = class(TForm)
     MainLayout: TLayout;
@@ -251,6 +253,10 @@ begin
     dpDigitalOcean: Result := 'DigitalOcean';
     dpVultr:       Result := 'Vultr';
     dpAzure:       Result := 'Azure';
+    dpBunny:       Result := 'Bunny.net';
+    dpRoute53:     Result := 'AWS Route 53';
+    dpGoogle:      Result := 'Google DNS';
+    dpCloudflare:  Result := 'Cloudflare';
   else
     Result := 'DigitalOcean';
   end;
@@ -262,6 +268,16 @@ begin
     Result := dpVultr
   else if SameText(AName, 'Azure') then
     Result := dpAzure
+  else if SameText(AName, 'DigitalOcean') then
+    Result := dpDigitalOcean
+  else if SameText(AName, 'Bunny.net') then
+    Result := dpBunny
+  else if SameText(AName, 'AWS Route 53') then
+    Result := dpRoute53
+  else if SameText(AName, 'Google DNS') then
+    Result := dpGoogle
+  else if SameText(AName, 'Cloudflare') then
+    Result := dpCloudflare
   else
     Result := dpDigitalOcean;
 end;
@@ -274,6 +290,10 @@ begin
     ProviderComboBox.Items.Add('DigitalOcean');
     ProviderComboBox.Items.Add('Vultr');
     ProviderComboBox.Items.Add('Azure');
+    ProviderComboBox.Items.Add('Bunny.net');
+    ProviderComboBox.Items.Add('AWS Route 53');
+    ProviderComboBox.Items.Add('Google DNS');
+    ProviderComboBox.Items.Add('Cloudflare');
     ProviderComboBox.ItemIndex := 0;
   end;
 
@@ -302,6 +322,14 @@ begin
     SetupTitle.Text := 'DigitalOcean API Setup'
   else if FCurrentProviderType = dpVultr then
     SetupTitle.Text := 'Vultr API Setup'
+  else if FCurrentProviderType = dpBunny then
+    SetupTitle.Text := 'Bunny.net Setup'
+  else if FCurrentProviderType = dpCloudflare then
+    SetupTitle.Text := 'Cloudflare Setup'
+  else if FCurrentProviderType = dpGoogle then
+    SetupTitle.Text := 'Google Setup'
+  else if FCurrentProviderType = dpRoute53 then
+    SetupTitle.Text := 'Amazon Route 53 Setup'
   else
     SetupTitle.Text := 'Azure DNS API Setup';
 
@@ -321,7 +349,12 @@ begin
 
     dpVultr:
       FProvider := TVultrDNSProvider.Create(ApiKeyEdit.Text, '');
-
+    dpBunny:
+      FProvider := TBunnyDNSProvider.Create(ApiKeyEdit.Text, '');
+    dpCloudflare:
+      FProvider := TCloudflareDNSProvider.Create(ApiKeyEdit.Text, '');
+    dpGoogle:
+      FProvider := TGoogleDNSProvider.Create(ApiKeyEdit.Text, '');
     dpAzure:
       FProvider := TAzureDNSProvider.Create(
         AzureTenantIdEdit.Text,
@@ -395,12 +428,18 @@ begin
     Ini.WriteString('General', 'Provider', ProviderTypeToName(FCurrentProviderType));
 
     case FCurrentProviderType of
+      dpRoute53:
+        Ini.WriteString('Route53', 'ApiKey', ApiKeyEdit.Text);
+      dpCloudflare:
+        Ini.WriteString('Cloudflare', 'ApiKey', ApiKeyEdit.Text);
       dpDigitalOcean:
         Ini.WriteString('DigitalOcean', 'ApiKey', ApiKeyEdit.Text);
 
       dpVultr:
         Ini.WriteString('Vultr', 'ApiKey', ApiKeyEdit.Text);
 
+      dpGoogle:
+        Ini.WriteString('Google', 'ApiKey', ApiKeyEdit.Text);
       dpAzure:
         begin
           Ini.WriteString('Azure', 'TenantId',       AzureTenantIdEdit.Text);
@@ -418,9 +457,13 @@ end;
 procedure TMainForm.ProviderComboBoxChange(Sender: TObject);
 begin
   case ProviderComboBox.ItemIndex of
-    0: FCurrentProviderType := dpDigitalOcean;
-    1: FCurrentProviderType := dpVultr;
-    2: FCurrentProviderType := dpAzure;
+    0: FCurrentProviderType := dpDigitalOcean;  //DigitalOcean
+    1: FCurrentProviderType := dpVultr; // Vultr
+    2: FCurrentProviderType := dpAzure; // Azure
+    3: FCurrentProviderType := dpBunny; // Bunny.net
+    4: FCurrentProviderType := dpRoute53; // AWS Route 53
+    5: FCurrentProviderType := dpGoogle; //  Google DNS
+    6: FCurrentProviderType := dpCloudflare;//  Cloudflare
   else
     FCurrentProviderType := dpDigitalOcean;
   end;
@@ -437,6 +480,12 @@ begin
   Ini := TIniFile.Create(GetApiKeyPath);
   try
     case FCurrentProviderType of
+      dpBunny:
+        ApiKeyEdit.Text := Ini.ReadString('Bunny', 'ApiKey', '');
+      dpCloudflare:
+        ApiKeyEdit.Text := Ini.ReadString('Cloudeflare', 'ApiKey', '');
+      dpRoute53:
+        ApiKeyEdit.Text := Ini.ReadString('Route53', 'ApiKey', '');
       dpDigitalOcean:
         ApiKeyEdit.Text := Ini.ReadString('DigitalOcean', 'ApiKey', '');
 
@@ -453,7 +502,7 @@ begin
       end;
     end;
   finally
-    Ini.Free;
+    FreeAndNil(Ini);
   end;
 end;
 
