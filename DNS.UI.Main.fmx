@@ -58,7 +58,7 @@ object MainForm: TMainForm
         Size.Width = 900.000000000000000000
         Size.Height = 662.000000000000000000
         Size.PlatformDefault = False
-        TabIndex = 1
+        TabIndex = 0
         TabPosition = Top
         Sizes = (
           900s
@@ -70,7 +70,7 @@ object MainForm: TMainForm
             item
             end>
           TextSettings.Trimming = None
-          IsSelected = False
+          IsSelected = True
           Size.Width = 52.000000000000000000
           Size.Height = 26.000000000000000000
           Size.PlatformDefault = False
@@ -148,7 +148,7 @@ object MainForm: TMainForm
             item
             end>
           TextSettings.Trimming = None
-          IsSelected = True
+          IsSelected = False
           Size.Width = 62.000000000000000000
           Size.Height = 26.000000000000000000
           Size.PlatformDefault = False
@@ -319,11 +319,10 @@ object MainForm: TMainForm
       end
     end
     object SetupPanel: TRectangle
+      Align = Center
       Fill.Color = claWhite
-      Position.X = 120.000000000000000000
-      Position.Y = -240.000000000000000000
       Size.Width = 660.000000000000000000
-      Size.Height = 240.000000000000000000
+      Size.Height = 520.000000000000000000
       Size.PlatformDefault = False
       Stroke.Color = xFFCCCCCC
       Visible = False
@@ -336,42 +335,153 @@ object MainForm: TMainForm
         Padding.Right = 16.000000000000000000
         Padding.Bottom = 16.000000000000000000
         Size.Width = 660.000000000000000000
-        Size.Height = 240.000000000000000000
+        Size.Height = 520.000000000000000000
         Size.PlatformDefault = False
-        Viewport.Width = 644.000000000000000000
-        Viewport.Height = 240.000000000000000000
+        Viewport.Width = 660.000000000000000000
+        Viewport.Height = 520.000000000000000000
         object SetupLayout: TLayout
           Align = Top
           Position.X = 16.000000000000000000
           Position.Y = 16.000000000000000000
-          Size.Width = 612.000000000000000000
-          Size.Height = 220.000000000000000000
+          Size.Width = 628.000000000000000000
+          Size.Height = 50.000000000000000000
           Size.PlatformDefault = False
           TabOrder = 0
           object SetupTitle: TLabel
             Align = Top
-            Size.Width = 612.000000000000000000
-            Size.Height = 17.000000000000000000
+            StyledSettings = [Family, FontColor]
+            Size.Width = 628.000000000000000000
+            Size.Height = 28.000000000000000000
             Size.PlatformDefault = False
-            TextSettings.Font.Size = 16.000000000000000000
+            TextSettings.Font.Size = 18.000000000000000000
             Text = 'API Setup'
+          end
+          object ProviderLabel: TLabel
+            Align = Top
+            Margins.Top = 12.000000000000000000
+            Position.Y = 40.000000000000000000
+            Size.Width = 628.000000000000000000
+            Size.Height = 22.000000000000000000
+            Size.PlatformDefault = False
+            Text = 'DNS Provider'
+          end
+          object ProviderComboBox: TComboBox
+            Align = Top
+            Items.Strings = (
+              'DigitalOcean'
+              'Vultr'
+              'Azure')
+            Margins.Top = 4.000000000000000000
+            Position.Y = 66.000000000000000000
+            Size.Width = 628.000000000000000000
+            Size.Height = 32.000000000000000000
+            Size.PlatformDefault = False
+            OnChange = ProviderComboBoxChange
           end
           object ApiKeyEdit: TEdit
             Touch.InteractiveGestures = [LongTap, DoubleTap]
             Align = Top
-            Position.Y = 25.000000000000000000
-            Margins.Top = 8.000000000000000000
-            Size.Width = 612.000000000000000000
-            Size.Height = 22.000000000000000000
+            Position.Y = 110.000000000000000000
+            Hint = 'API key'
+            Margins.Top = 12.000000000000000000
+            Size.Width = 628.000000000000000000
+            Size.Height = 32.000000000000000000
             Size.PlatformDefault = False
-            TextPrompt = 'Enter Vultr API Key'
+          end
+          object AzureLayout: TLayout
+            Align = Top
+            Size.Width = 612.000000000000000000
+            Size.Height = 0.000000000000000000
+            Size.PlatformDefault = False
+            Visible = False
+            object AzureTenantIdLabel: TLabel
+              Align = Top
+              Margins.Top = 12.000000000000000000
+              Size.Width = 120.000000000000000000
+              Size.Height = 22.000000000000000000
+              Size.PlatformDefault = False
+              Text = 'Tenant ID'
+            end
+            object AzureTenantIdEdit: TEdit
+              Touch.InteractiveGestures = [LongTap, DoubleTap]
+              Align = Top
+              Margins.Top = 4.000000000000000000
+              Size.Width = 100.000000000000000000
+              Size.Height = 32.000000000000000000
+              Size.PlatformDefault = False
+            end
+            object AzureClientIdLabel: TLabel
+              Align = Top
+              Margins.Top = 12.000000000000000000
+              Size.Width = 120.000000000000000000
+              Size.Height = 22.000000000000000000
+              Size.PlatformDefault = False
+              Text = 'Client ID'
+            end
+            object AzureClientIdEdit: TEdit
+              Touch.InteractiveGestures = [LongTap, DoubleTap]
+              Align = Top
+              Margins.Top = 4.000000000000000000
+              Size.Width = 100.000000000000000000
+              Size.Height = 32.000000000000000000
+              Size.PlatformDefault = False
+            end
+            object AzureClientSecretLabel: TLabel
+              Align = Top
+              Margins.Top = 12.000000000000000000
+              Size.Width = 120.000000000000000000
+              Size.Height = 22.000000000000000000
+              Size.PlatformDefault = False
+              Text = 'Client Secret'
+            end
+            object AzureClientSecretEdit: TEdit
+              Touch.InteractiveGestures = [LongTap, DoubleTap]
+              Align = Top
+              Password = True
+              Margins.Top = 4.000000000000000000
+              Size.Width = 100.000000000000000000
+              Size.Height = 32.000000000000000000
+              Size.PlatformDefault = False
+            end
+            object AzureSubscriptionLabel: TLabel
+              Align = Top
+              Margins.Top = 12.000000000000000000
+              Size.Width = 120.000000000000000000
+              Size.Height = 22.000000000000000000
+              Size.PlatformDefault = False
+              Text = 'Subscription ID'
+            end
+            object AzureSubscriptionIdEdit: TEdit
+              Touch.InteractiveGestures = [LongTap, DoubleTap]
+              Align = Top
+              Margins.Top = 4.000000000000000000
+              Size.Width = 100.000000000000000000
+              Size.Height = 32.000000000000000000
+              Size.PlatformDefault = False
+            end
+            object AzureResourceGroupLabel: TLabel
+              Align = Top
+              Margins.Top = 12.000000000000000000
+              Size.Width = 120.000000000000000000
+              Size.Height = 22.000000000000000000
+              Size.PlatformDefault = False
+              Text = 'Resource Group'
+            end
+            object AzureResourceGroupEdit: TEdit
+              Touch.InteractiveGestures = [LongTap, DoubleTap]
+              Align = Top
+              Margins.Top = 4.000000000000000000
+              Size.Width = 100.000000000000000000
+              Size.Height = 32.000000000000000000
+              Size.PlatformDefault = False
+            end
           end
           object btnSaveApiKey: TButton
             Align = Top
-            Margins.Top = 8.000000000000000000
-            Position.Y = 55.000000000000000000
-            Size.Width = 612.000000000000000000
-            Size.Height = 22.000000000000000000
+            Margins.Top = 20.000000000000000000
+            Position.Y = 162.000000000000000000
+            Size.Width = 628.000000000000000000
+            Size.Height = 36.000000000000000000
             Size.PlatformDefault = False
             Text = 'Save'
             TextSettings.Trimming = None
@@ -380,9 +490,9 @@ object MainForm: TMainForm
           object btnCancelSetup: TButton
             Align = Top
             Margins.Top = 8.000000000000000000
-            Position.Y = 85.000000000000000000
-            Size.Width = 612.000000000000000000
-            Size.Height = 22.000000000000000000
+            Position.Y = 206.000000000000000000
+            Size.Width = 628.000000000000000000
+            Size.Height = 36.000000000000000000
             Size.PlatformDefault = False
             Text = 'Cancel'
             TextSettings.Trimming = None
@@ -483,6 +593,7 @@ object MainForm: TMainForm
     object RecordEditPanel: TRectangle
       Fill.Color = claWhite
       Position.X = 100.000000000000000000
+      Position.Y = -700.000000000000000000
       Size.Width = 700.000000000000000000
       Size.Height = 577.000000000000000000
       Size.PlatformDefault = False

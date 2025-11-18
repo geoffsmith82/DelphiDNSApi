@@ -1,4 +1,4 @@
-unit DNS.UI.Main;
+﻿unit DNS.UI.Main;
 
 interface
 
@@ -36,9 +36,12 @@ uses
   DNS.Base,
   DNS.Vultr,
   DNS.DigitalOcean,
+  DNS.Azure,
   DNS.Helpers;
 
 type
+  TDNSProviderType = (dpDigitalOcean, dpVultr, dpAzure);
+
   TMainForm = class(TForm)
     MainLayout: TLayout;
     HeaderLayout: TLayout;
@@ -84,7 +87,20 @@ type
     SetupLayout: TLayout;
     SetupScrollBox: TVertScrollBox;
     SetupTitle: TLabel;
+    ProviderLabel: TLabel;
+    ProviderComboBox: TComboBox;
     ApiKeyEdit: TEdit;
+    AzureLayout: TLayout;
+    AzureTenantIdLabel: TLabel;
+    AzureTenantIdEdit: TEdit;
+    AzureClientIdLabel: TLabel;
+    AzureClientIdEdit: TEdit;
+    AzureClientSecretLabel: TLabel;
+    AzureClientSecretEdit: TEdit;
+    AzureSubscriptionLabel: TLabel;
+    AzureSubscriptionIdEdit: TEdit;
+    AzureResourceGroupLabel: TLabel;
+    AzureResourceGroupEdit: TEdit;
     btnSaveApiKey: TButton;
     btnCancelSetup: TButton;
 
@@ -153,9 +169,10 @@ type
     procedure RecordTypeFilterChange(Sender: TObject);
     procedure SearchButtonClick(Sender: TObject);
     procedure RecordsListItemClick(const Sender: TObject; const AItem: TListViewItem);
-
+    procedure ProviderComboBoxChange(Sender: TObject);
   private
-    FProvider: TVultrDNSProvider;
+    FProvider: TBaseDNSProvider;
+    FCurrentProviderType: TDNSProviderType;
     FCurrentZone: string;
     FZones: TObjectList<TDNSZone>;
     FRecords: TObjectList<TDNSRecord>;
@@ -165,6 +182,12 @@ type
     procedure DoHideSetupPanel(Sender: TObject);
     procedure DoHideZoneAddPanel(Sender: TObject);
     procedure DoHideRecordEditPanel(Sender: TObject);
+
+    procedure InitializeProviders;
+    procedure UpdateAuthFieldVisibility;
+    function ProviderTypeToName(AType: TDNSProviderType): string;
+    function ProviderNameToType(const AName: string): TDNSProviderType;
+    function CreateProviderFromCurrentSettings: Boolean;
 
     procedure LoadApiKey;
     procedure SaveApiKey(const AKey: string);
@@ -183,6 +206,7 @@ type
     procedure InitializeRecordTypes;
     procedure FilterRecords;
     function GetApiKeyPath: string;
+    procedure LoadStoredCredentialsForCurrentProvider;
 
   public
   end;
@@ -201,34 +225,14 @@ procedure TMainForm.FormCreate(Sender: TObject);
 begin
   FZones := TObjectList<TDNSZone>.Create(True);
   FRecords := TObjectList<TDNSRecord>.Create(True);
+
+  FProvider := nil;
   FSelectedRecordIndex := -1;
 
-  TabControl.ActiveTab := TabZones;
-  RecordEditPanel.Visible := False;
-  ZoneAddPanel.Visible := False;
-  SetupPanel.Visible := False;
-  ActivityIndicator.Visible := False;
-
   InitializeRecordTypes;
+  InitializeProviders;
 
-  SlideIn.PropertyName := 'Position.Y';
-  SlideIn.Duration := 0.3;
-  SlideIn.Interpolation := TInterpolationType.Quadratic;
-
-  SlideOut.PropertyName := 'Position.Y';
-  SlideOut.Duration := 0.3;
-  SlideOut.Interpolation := TInterpolationType.Quadratic;
-
-  FadeIn.PropertyName := 'Opacity';
-  FadeIn.StartValue := 0;
-  FadeIn.StopValue := 1;
-  FadeIn.Duration := 0.2;
-
-  FadeOut.PropertyName := 'Opacity';
-  FadeOut.StartValue := 1;
-  FadeOut.StopValue := 0;
-  FadeOut.Duration := 0.2;
-
+  // Load saved settings but DO NOT activate provider
   LoadApiKey;
 end;
 
@@ -239,35 +243,146 @@ begin
   FRecords.Free;
 end;
 
+function TMainForm.ProviderTypeToName(AType: TDNSProviderType): string;
+begin
+  case AType of
+    dpDigitalOcean: Result := 'DigitalOcean';
+    dpVultr:       Result := 'Vultr';
+    dpAzure:       Result := 'Azure';
+  else
+    Result := 'DigitalOcean';
+  end;
+end;
+
+function TMainForm.ProviderNameToType(const AName: string): TDNSProviderType;
+begin
+  if SameText(AName, 'Vultr') then
+    Result := dpVultr
+  else if SameText(AName, 'Azure') then
+    Result := dpAzure
+  else
+    Result := dpDigitalOcean;
+end;
+
+procedure TMainForm.InitializeProviders;
+begin
+  if Assigned(ProviderComboBox) then
+  begin
+    ProviderComboBox.Items.Clear;
+    ProviderComboBox.Items.Add('DigitalOcean');
+    ProviderComboBox.Items.Add('Vultr');
+    ProviderComboBox.Items.Add('Azure');
+    ProviderComboBox.ItemIndex := 0;
+  end;
+
+  FCurrentProviderType := dpDigitalOcean;
+  UpdateAuthFieldVisibility;
+end;
+
+procedure TMainForm.UpdateAuthFieldVisibility;
+var
+  IsAzure: Boolean;
+begin
+  IsAzure := FCurrentProviderType = dpAzure;
+
+  // DigitalOcean/Vultr: API key only
+  ApiKeyEdit.Visible := not IsAzure;
+
+  AzureLayout.Visible := (FCurrentProviderType = dpAzure);
+  AzureLayout.Height :=  AzureResourceGroupEdit.Position.Y + 40;
+
+  // Force FMX to recalc vertical stacking:
+//  SetupLayout.Realign;
+  SetupScrollBox.RealignContent;
+
+
+  if FCurrentProviderType = dpDigitalOcean then
+    SetupTitle.Text := 'DigitalOcean API Setup'
+  else if FCurrentProviderType = dpVultr then
+    SetupTitle.Text := 'Vultr API Setup'
+  else
+    SetupTitle.Text := 'Azure DNS API Setup';
+
+    SetupScrollBox.Height := btnCancelSetup.Position.Y + btnCancelSetup.Height - SetupScrollBox.Position.Y;
+    SetupPanel.Height := (SetupScrollBox.Height + 40);
+
+end;
+
+function TMainForm.CreateProviderFromCurrentSettings: Boolean;
+begin
+  Result := False;
+  FreeAndNil(FProvider);
+
+  case FCurrentProviderType of
+    dpDigitalOcean:
+      FProvider := TDigitalOceanDNSProvider.Create(ApiKeyEdit.Text);
+
+    dpVultr:
+      FProvider := TVultrDNSProvider.Create(ApiKeyEdit.Text, '');
+
+    dpAzure:
+      FProvider := TAzureDNSProvider.Create(
+        AzureTenantIdEdit.Text,
+        AzureClientIdEdit.Text,
+        AzureClientSecretEdit.Text,
+        AzureSubscriptionIdEdit.Text,
+        AzureResourceGroupEdit.Text
+      );
+  end;
+
+  Result := FProvider <> nil;
+end;
+
 function TMainForm.GetApiKeyPath: string;
 begin
-  Result := TPath.Combine(TPath.GetHomePath, 'vultr_dns_config.ini');
+  Result := TPath.Combine(TPath.GetHomePath, 'digitalocean_dns_config.ini');
 end;
 
 procedure TMainForm.LoadApiKey;
 var
   Ini: TIniFile;
-  ApiKey: string;
+  ProviderName: string;
 begin
-  if TFile.Exists(GetApiKeyPath) then
+  if not FileExists(GetApiKeyPath) then
   begin
-    Ini := TIniFile.Create(GetApiKeyPath);
-    try
-      ApiKey := Ini.ReadString('API', 'Key', '');
-      if ApiKey <> '' then
-      begin
-        FProvider := TVultrDNSProvider.Create(ApiKey);
-        LoadZones;
-      end
-      else
-        ShowSetupPanel;
-    finally
-      Ini.Free;
-    end;
-  end
-  else
+    ProviderComboBox.ItemIndex := -1;
     ShowSetupPanel;
+    Exit;
+  end;
+
+  Ini := TIniFile.Create(GetApiKeyPath);
+  try
+    ProviderName := Ini.ReadString('General', 'Provider', '');
+
+    // No provider saved → force user to choose
+    if ProviderName = '' then
+    begin
+      ProviderComboBox.ItemIndex := -1;
+      ShowSetupPanel;
+      Exit;
+    end;
+
+    // Set dropdown
+    FCurrentProviderType := ProviderNameToType(ProviderName);
+    ProviderComboBox.ItemIndex := Ord(FCurrentProviderType);
+
+    // Load saved credentials
+    LoadStoredCredentialsForCurrentProvider;
+
+    // Important:
+    // We DO NOT create the provider here.
+    // We DO NOT load zones here.
+    // User must hit Save manually to activate it.
+
+    // Instead, show setup panel so user can confirm or change settings
+    ShowSetupPanel;
+
+  finally
+    Ini.Free;
+  end;
 end;
+
+
 
 procedure TMainForm.SaveApiKey(const AKey: string);
 var
@@ -275,11 +390,71 @@ var
 begin
   Ini := TIniFile.Create(GetApiKeyPath);
   try
-    Ini.WriteString('API', 'Key', AKey);
+    Ini.WriteString('General', 'Provider', ProviderTypeToName(FCurrentProviderType));
+
+    case FCurrentProviderType of
+      dpDigitalOcean:
+        Ini.WriteString('DigitalOcean', 'ApiKey', ApiKeyEdit.Text);
+
+      dpVultr:
+        Ini.WriteString('Vultr', 'ApiKey', ApiKeyEdit.Text);
+
+      dpAzure:
+        begin
+          Ini.WriteString('Azure', 'TenantId',       AzureTenantIdEdit.Text);
+          Ini.WriteString('Azure', 'ClientId',       AzureClientIdEdit.Text);
+          Ini.WriteString('Azure', 'ClientSecret',   AzureClientSecretEdit.Text);
+          Ini.WriteString('Azure', 'SubscriptionId', AzureSubscriptionIdEdit.Text);
+          Ini.WriteString('Azure', 'ResourceGroup',  AzureResourceGroupEdit.Text);
+        end;
+    end;
   finally
     Ini.Free;
   end;
 end;
+
+procedure TMainForm.ProviderComboBoxChange(Sender: TObject);
+begin
+  case ProviderComboBox.ItemIndex of
+    0: FCurrentProviderType := dpDigitalOcean;
+    1: FCurrentProviderType := dpVultr;
+    2: FCurrentProviderType := dpAzure;
+  else
+    FCurrentProviderType := dpDigitalOcean;
+  end;
+
+  UpdateAuthFieldVisibility;
+  LoadStoredCredentialsForCurrentProvider;
+end;
+
+
+procedure TMainForm.LoadStoredCredentialsForCurrentProvider;
+var
+  Ini: TIniFile;
+begin
+  Ini := TIniFile.Create(GetApiKeyPath);
+  try
+    case FCurrentProviderType of
+      dpDigitalOcean:
+        ApiKeyEdit.Text := Ini.ReadString('DigitalOcean', 'ApiKey', '');
+
+      dpVultr:
+        ApiKeyEdit.Text := Ini.ReadString('Vultr', 'ApiKey', '');
+
+      dpAzure:
+      begin
+        AzureTenantIdEdit.Text       := Ini.ReadString('Azure', 'TenantId', '');
+        AzureClientIdEdit.Text       := Ini.ReadString('Azure', 'ClientId', '');
+        AzureClientSecretEdit.Text   := Ini.ReadString('Azure', 'ClientSecret', '');
+        AzureSubscriptionIdEdit.Text := Ini.ReadString('Azure', 'SubscriptionId', '');
+        AzureResourceGroupEdit.Text  := Ini.ReadString('Azure', 'ResourceGroup', '');
+      end;
+    end;
+  finally
+    Ini.Free;
+  end;
+end;
+
 
 procedure TMainForm.ShowSetupPanel;
 begin
@@ -309,17 +484,65 @@ end;
 
 procedure TMainForm.btnSaveApiKeyClick(Sender: TObject);
 begin
-  if Trim(ApiKeyEdit.Text) = '' then
+  // Validate fields for the chosen provider
+  case FCurrentProviderType of
+    dpDigitalOcean, dpVultr:
+      if Trim(ApiKeyEdit.Text) = '' then
+      begin
+        ShowError('Please enter an API key.');
+        Exit;
+      end;
+
+    dpAzure:
+    begin
+      if Trim(AzureTenantIdEdit.Text) = '' then
+      begin
+        ShowError('Enter Azure Tenant ID.');
+        Exit;
+      end;
+      if Trim(AzureClientIdEdit.Text) = '' then
+      begin
+        ShowError('Enter Azure Client ID.');
+        Exit;
+      end;
+      if Trim(AzureClientSecretEdit.Text) = '' then
+      begin
+        ShowError('Enter Azure Client Secret.');
+        Exit;
+      end;
+      if Trim(AzureSubscriptionIdEdit.Text) = '' then
+      begin
+        ShowError('Enter Azure Subscription ID.');
+        Exit;
+      end;
+      if Trim(AzureResourceGroupEdit.Text) = '' then
+      begin
+        ShowError('Enter Azure Resource Group.');
+        Exit;
+      end;
+    end;
+  end;
+
+  // Save credentials to INI
+  SaveApiKey('');
+
+  // remove old provider
+  FreeAndNil(FProvider);
+
+  // create correct provider
+  if not CreateProviderFromCurrentSettings then
   begin
-    ShowError('Please enter a valid API key');
+    ShowError('Unable to create provider with current settings');
     Exit;
   end;
 
-  SaveApiKey(ApiKeyEdit.Text);
-  FProvider := TVultrDNSProvider.Create(ApiKeyEdit.Text);
+  // close setup panel
   HideSetupPanel;
+
+  // Reload zones from the new provider
   LoadZones;
 end;
+
 
 procedure TMainForm.btnCancelSetupClick(Sender: TObject);
 begin

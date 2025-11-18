@@ -294,8 +294,10 @@
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="DNS.Base.pas"/>
-        <DCCReference Include="DNS.Vultr.pas"/>
         <DCCReference Include="DNS.Helpers.pas"/>
+        <DCCReference Include="DNS.Vultr.pas"/>
+        <DCCReference Include="DNS.DigitalOcean.pas"/>
+        <DCCReference Include="DNS.Azure.pas"/>
         <DCCReference Include="DNS.UI.Main.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
