@@ -46,6 +46,10 @@ uses
 type
   TDNSProviderType = (dpAzure, dpBunny, dpCloudflare, dpDigitalOcean, dpGoogle, dpRoute53, dpVultr);
 
+  TDNSProvierTypeHelper = record helper for TDNSProviderType
+    function ToServiceName: string;
+  end;
+
   TMainForm = class(TForm)
     MainLayout: TLayout;
     HeaderLayout: TLayout;
@@ -189,7 +193,6 @@ type
 
     procedure InitializeProviders;
     procedure UpdateAuthFieldVisibility;
-    function ProviderTypeToName(AType: TDNSProviderType): string;
     function ProviderNameToType(const AName: string): TDNSProviderType;
     function CreateProviderFromCurrentSettings: Boolean;
 
@@ -242,24 +245,9 @@ end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
 begin
-  FProvider.Free;
-  FZones.Free;
-  FRecords.Free;
-end;
-
-function TMainForm.ProviderTypeToName(AType: TDNSProviderType): string;
-begin
-  case AType of
-    dpDigitalOcean: Result := 'DigitalOcean';
-    dpVultr:       Result := 'Vultr';
-    dpAzure:       Result := 'Azure';
-    dpBunny:       Result := 'Bunny.net';
-    dpRoute53:     Result := 'AWS Route 53';
-    dpGoogle:      Result := 'Google DNS';
-    dpCloudflare:  Result := 'Cloudflare';
-  else
-    Result := 'DigitalOcean';
-  end;
+  FreeAndNil(FProvider);
+  FreeAndNil(FZones);
+  FreeAndNil(FRecords);
 end;
 
 function TMainForm.ProviderNameToType(const AName: string): TDNSProviderType;
@@ -425,7 +413,7 @@ var
 begin
   Ini := TIniFile.Create(GetApiKeyPath);
   try
-    Ini.WriteString('General', 'Provider', ProviderTypeToName(FCurrentProviderType));
+    Ini.WriteString('General', 'Provider', FCurrentProviderType.ToServiceName);
 
     case FCurrentProviderType of
       dpRoute53:
@@ -1208,6 +1196,23 @@ procedure TMainForm.ShowError(const AMessage: string);
 begin
   TDialogService.ShowMessage(AMessage);
   SetStatus('Error: ' + AMessage);
+end;
+
+{ TDNSProvierTypeHelper }
+
+function TDNSProvierTypeHelper.ToServiceName: string;
+begin
+  case Self of
+    dpDigitalOcean: Result := 'DigitalOcean';
+    dpVultr:        Result := 'Vultr';
+    dpAzure:        Result := 'Azure';
+    dpBunny:        Result := 'Bunny.net';
+    dpRoute53:      Result := 'AWS Route 53';
+    dpGoogle:       Result := 'Google DNS';
+    dpCloudflare:   Result := 'Cloudflare';
+  else
+    Result := 'DigitalOcean';
+  end;
 end;
 
 end.
