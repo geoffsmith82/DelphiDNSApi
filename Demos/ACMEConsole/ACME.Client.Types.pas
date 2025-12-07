@@ -15,7 +15,7 @@ type
   TAcmeAuthorizationStatus = (asPending, asValid, asInvalid);
 
   TAcmeChallenge = record
-    ChallengeType     : string;  // 'dns-01' or 'http-01'
+    ChallengeType     : TChallengeType;  // 'dns-01' or 'http-01'
     Url               : string;  // challenge URL
     Token             : string;  // token from server
   end;
@@ -43,7 +43,7 @@ type
   // Common interface for all challenge solvers
   IAcmeChallengeSolver = interface
     ['{C39AF4B2-7C9D-4C53-9B72-0A4842BDEFFD}']
-    function CanSolve(const ChallengeType: string): Boolean;
+    function CanSolve(const ChallengeType: TChallengeType): Boolean;
     procedure Solve(const Domain: string; const Challenge: TAcmeChallenge;
       const KeyAuthorization: string);
     procedure Cleanup(const Domain: string; const Challenge: TAcmeChallenge);

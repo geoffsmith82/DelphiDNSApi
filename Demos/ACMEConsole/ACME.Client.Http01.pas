@@ -14,7 +14,7 @@ type
     FInstaller: IAcmeHttpChallengeInstaller;
   public
     constructor Create(const AInstaller: IAcmeHttpChallengeInstaller);
-    function CanSolve(const ChallengeType: string): Boolean;
+    function CanSolve(const ChallengeType: TChallengeType): Boolean;
     procedure Solve(const Domain: string; const Challenge: TAcmeChallenge; const KeyAuthorization: string);
     procedure Cleanup(const Domain: string; const Challenge: TAcmeChallenge);
   end;
@@ -29,9 +29,9 @@ begin
   FInstaller := AInstaller;
 end;
 
-function TAcmeHttp01Solver.CanSolve(const ChallengeType: string): Boolean;
+function TAcmeHttp01Solver.CanSolve(const ChallengeType: TChallengeType): Boolean;
 begin
-  Result := SameText(ChallengeType, 'http-01');
+  Result := ChallengeType = ctHttp01;
 end;
 
 procedure TAcmeHttp01Solver.Solve(const Domain: string; const Challenge: TAcmeChallenge;

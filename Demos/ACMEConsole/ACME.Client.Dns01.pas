@@ -21,8 +21,8 @@ type
     constructor Create(AProvider: TBaseDNSProvider);
     destructor Destroy; override;
 
-    function CanSolve(const ChallengeType: string): Boolean;
-    procedure Solve(const Domain: string; const Challenge: TAcmeChallenge; const KeyAuthorization: string);
+    function CanSolve(const ChallengeType: TChallengeType): Boolean;
+    procedure Solve(const Domain: string; const Challenge: TAcmeChallenge; const TxtValue: string);
     procedure Cleanup(const Domain: string; const Challenge: TAcmeChallenge);
   end;
 
@@ -43,9 +43,9 @@ begin
   inherited;
 end;
 
-function TAcmeDns01Solver.CanSolve(const ChallengeType: string): Boolean;
+function TAcmeDns01Solver.CanSolve(const ChallengeType: TChallengeType): Boolean;
 begin
-  Result := SameText(ChallengeType, 'dns-01');
+  Result := ChallengeType = TChallengeType.ctDns01;
 end;
 
 function TAcmeDns01Solver.FindBestZone(const Domain: string; out ZoneName: string): Boolean;
@@ -95,29 +95,28 @@ begin
     Result := '_acme-challenge.' + SubPart;
 end;
 
-procedure TAcmeDns01Solver.Solve(const Domain: string; const Challenge: TAcmeChallenge; const KeyAuthorization: string);
+
+
+procedure TAcmeDns01Solver.Solve(const Domain: string; const Challenge: TAcmeChallenge; const TxtValue: string);
 var
   ZoneName: string;
   Rec, Created: TDNSRecord;
-  TxtValue: string;
 begin
   if not FindBestZone(Domain, ZoneName) then
     raise EDNSZoneNotFound.CreateFmt('No DNS zone found for %s', [Domain]);
 
-//  TxtValue := ComputeDns01TxtValue(KeyAuthorization); // from Acme.TaurusCrypto? We'll inline:
-  // reuse helper from crypto unit if you prefer; here we inline for clarity
-
   Rec := TDNSRecord.Create;
   try
-    Rec.Name := BuildRecordName(Domain, ZoneName);
+    Rec.Name := BuildRecordName(Domain, ZoneName);   // "_acme-challenge.<subdomain>"
     Rec.RecordType := drtTXT;
-    Rec.Value := TxtValue;
+    Rec.Value := TxtValue;                           // <-- ACME client already computed
     Rec.TTL := 60;
 
     Created := FProvider.CreateRecord(ZoneName, Rec);
     try
       if Created = nil then
         raise EDNSAPIException.Create('CreateRecord returned nil');
+
       FCreatedRecords.AddOrSetValue(Domain, Created.Id);
     finally
       FreeAndNil(Created);
@@ -125,8 +124,6 @@ begin
   finally
     FreeAndNil(Rec);
   end;
-
-  // TODO: Wait for propagation by polling external resolvers if you want robustness
 end;
 
 procedure TAcmeDns01Solver.Cleanup(const Domain: string; const Challenge: TAcmeChallenge);

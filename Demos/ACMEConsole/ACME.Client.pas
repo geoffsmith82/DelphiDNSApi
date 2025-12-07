@@ -6,10 +6,12 @@ uses
   System.SysUtils,
   System.Classes,
   System.StrUtils,
+  System.DateUtils,
   System.Generics.Collections,
   System.Net.HttpClient,
   System.Net.URLClient,
   System.JSON,
+  FMX.Types,
   ACME.Client.Types,
   ACME.TaurusCrypto;
 
@@ -27,23 +29,36 @@ type
     FAccountUrl  : string;  // account URL (kid)
     FAccountFile : string;
 
+    FDnsProviderName: string;
+
+    FCertKey: TAcmeKeyPair;
+
     procedure LoadDirectory;
     function NewNonce: string;
 
     function RawPost(const Url, JwsBody: string; out Location: string): TJSONObject;
-    function JwsPost(const Url: string; Payload: TJSONValue;
-      UseKid: Boolean; out Location: string): TJSONObject;
+    function JwsPost(const Url: string; Payload: TJSONValue; UseKid: Boolean; out Location: string): TJSONObject;
 
     function StatusFromStr(const S: string): TAcmeAuthorizationStatus;
     function GetAuthorizationsForOrder(const OrderObj: TJSONObject): TArray<TAcmeAuthorization>;
-    function GetChallengeForAuth(const Auth: TAcmeAuthorization;
-      PrefType: TChallengeType; out Chall: TAcmeChallenge): Boolean;
+    function GetChallengeForAuth(const Auth: TAcmeAuthorization; PrefType: TChallengeType; out Chall: TAcmeChallenge): Boolean;
 
     function ComputeKeyAuthorization(const Token: string): string;
-    procedure ValidateAuthorizations(const OrderObj: TJSONObject;
-      PrefType: TChallengeType; const OrderUrl: string);
+    procedure ValidateAuthorizations(const OrderObj: TJSONObject; PrefType: TChallengeType; const OrderUrl: string);
 
     function DownloadCertPem(const CertUrl: string): string;
+  private
+    FStorageRoot: string;
+    function GetStorageRoot: string;
+    function GetLiveDir(const Name: string): string;
+    function GetArchiveDir(const Name: string): string;
+    function GetRenewalFile(const Name: string): string;
+    function NextArchiveIndex(const Name: string): Integer;
+    procedure EnsureDir(const Path: string);
+    procedure WritePemFile(const FileName, Contents: string);
+    procedure UpdateLiveCertificate(const Name: string; Version: Integer);
+    procedure SaveCertificateSet(const Domains: TArray<string>; const CertPem,
+      ChainPem, PrivateKeyPem, DirectoryUrl, AuthMethod, DnsProvider: string);
   public
     constructor Create(const ADirectoryUrl: string = 'https://acme-v02.api.letsencrypt.org/directory');
     destructor Destroy; override;
@@ -57,6 +72,8 @@ type
       out CertificatePem, PrivateKeyPem, ChainPem: string;
       PrefType: TChallengeType = ctDns01;
       UseStaging: Boolean = True);
+
+    function ComputeDns01TxtValue(const Token: string): string;
   end;
 
 implementation
@@ -68,6 +85,23 @@ uses
   System.IOUtils;
 
 { TAcmeClient *****************************************************************}
+
+function StringToChallengeType(str:string): TChallengeType;
+begin
+  if str.Contains('http01') then
+    Result := ctHttp01
+  else
+    Result := ctDns01;
+end;
+
+function ChallengeTypeToString(challengeType:TChallengeType):String ;
+begin
+  if challengeType = ctHttp01 then
+    Result := 'Http01'
+  else
+    Result := 'Dns01';
+end;
+
 
 constructor TAcmeClient.Create(const ADirectoryUrl: string);
 begin
@@ -109,6 +143,29 @@ begin
   finally
     FreeAndNil(Obj);
   end;
+end;
+
+
+function TAcmeClient.ComputeDns01TxtValue(const Token: string): string;
+var
+  KeyAuth: string;
+  Thumb: string;
+  Hash: TBytes;
+begin
+  if FAccountKey = nil then
+    raise EAcmeClientError.Create('ComputeDns01TxtValue: account key not initialized');
+
+  // 1. JWK thumbprint
+  Thumb := FAccountKey.ComputeJwkThumbprint;
+
+  // 2. keyAuthorization string
+  KeyAuth := Token + '.' + Thumb;
+
+  // 3. SHA-256 hash of keyAuthorization (UTF-8 bytes)
+  Hash := THashSHA2.GetHashBytes(KeyAuth);
+
+  // 4. Base64Url encode result
+  Result := Base64UrlEncode(Hash);
 end;
 
 function TAcmeClient.NewNonce: string;
@@ -206,7 +263,7 @@ begin
   if Assigned(Payload) then
     PayloadStr := Payload.ToJSON
   else
-    PayloadStr := '{}'; // POST-as-GET
+    PayloadStr := ''; // POST-as-GET
 
   PayloadB64 := Base64UrlEncodeStr(PayloadStr);
 
@@ -268,13 +325,14 @@ begin
         IdentObj := AuthObj.GetValue('identifier') as TJSONObject;
         A.Identifier := IdentObj.GetValue<string>('value');
         A.Status := StatusFromStr(AuthObj.GetValue<string>('status'));
+        Log.d(AuthObj.GetValue<string>('status'));
 
         ChallArr := AuthObj.GetValue('challenges') as TJSONArray;
         SetLength(A.Challenges, ChallArr.Count);
         for J := 0 to ChallArr.Count - 1 do
         begin
           ChallObj := ChallArr.Items[J] as TJSONObject;
-          C.ChallengeType := ChallObj.GetValue<string>('type');
+          C.ChallengeType := StringToChallengeType(ChallObj.GetValue<string>('type'));
           C.Url           := ChallObj.GetValue<string>('url');
           C.Token         := ChallObj.GetValue<string>('token');
           A.Challenges[J] := C;
@@ -282,7 +340,7 @@ begin
 
         Auths.Add(A);
       finally
-        AuthObj.Free;
+        FreeAndNil(AuthObj);
       end;
     end;
 
@@ -296,18 +354,10 @@ function TAcmeClient.GetChallengeForAuth(const Auth: TAcmeAuthorization;
   PrefType: TChallengeType; out Chall: TAcmeChallenge): Boolean;
 var
   I: Integer;
-  Wanted: string;
 begin
-  case PrefType of
-    ctDns01:  Wanted := 'dns-01';
-    ctHttp01: Wanted := 'http-01';
-  else
-    Wanted := '';
-  end;
-
   // First try preferred type
   for I := 0 to Length(Auth.Challenges) - 1 do
-    if SameText(Auth.Challenges[I].ChallengeType, Wanted) then
+    if Auth.Challenges[I].ChallengeType = PrefType then
     begin
       Chall := Auth.Challenges[I];
       Exit(True);
@@ -338,53 +388,74 @@ var
   Chall: TAcmeChallenge;
   Solver: IAcmeChallengeSolver;
   KeyAuth: string;
-  dummy: string;
+  ValueForSolver: string;
   Payload: TJSONObject;
   Resp: TJSONObject;
   AllValid: Boolean;
   Attempt: Integer;
 begin
-  // 1. Present challenges
   Auths := GetAuthorizationsForOrder(OrderObj);
 
+  // --- 1. For each authorization, choose challenge + present proof ---
   for Auth in Auths do
   begin
     if not GetChallengeForAuth(Auth, PrefType, Chall) then
       raise EAcmeClientError.CreateFmt('No suitable challenge for %s', [Auth.Identifier]);
 
+    // Find matching solver
     Solver := nil;
     for Solver in FSolvers do
       if Solver.CanSolve(Chall.ChallengeType) then
         Break;
 
-    if (Solver = nil) or (not Solver.CanSolve(Chall.ChallengeType)) then
-      raise EAcmeClientError.CreateFmt('No solver for challenge type %s', [Chall.ChallengeType]);
+    if Solver = nil then
+      raise EAcmeClientError.CreateFmt('No solver for challenge type %s', [ChallengeTypeToString(Chall.ChallengeType)]);
 
+    // Compute keyAuthorization (always needed)
     KeyAuth := ComputeKeyAuthorization(Chall.Token);
-    Solver.Solve(Auth.Identifier, Chall, KeyAuth);
 
-    // Notify ACME that challenge is ready (empty JSON)
+    // Compute solver-specific value
+    case Chall.ChallengeType of
+      ctHTTP01:
+        ValueForSolver := KeyAuth;
+
+      ctDNS01:
+        ValueForSolver := ComputeDns01TxtValue(Chall.Token);
+
+    else
+      raise EAcmeClientError.Create('Unsupported challenge type');
+    end;
+
+    // Tell solver to install challenge proof (TXT record or HTTP file)
+    Solver.Solve(Auth.Identifier, Chall, ValueForSolver);
+
+    // Notify ACME server that challenge is ready
     Payload := TJSONObject.Create;
     try
-      Resp := JwsPost(Chall.Url, Payload, True, dummy); // Location ignored here
+      var tmp: string;
+      Resp := JwsPost(Chall.Url, Payload, True, tmp);
     finally
       FreeAndNil(Payload);
       FreeAndNil(Resp);
     end;
   end;
 
-  // 2. Poll authorizations until all are valid or timeout
+  // --- 2. Poll all authorizations until they become valid ---
   for Attempt := 1 to 30 do
   begin
     Sleep(2000);
     Auths := GetAuthorizationsForOrder(OrderObj);
+
     AllValid := True;
     for Auth in Auths do
+    begin
       if Auth.Status <> asValid then
       begin
         AllValid := False;
         Break;
       end;
+    end;
+
     if AllValid then
       Break;
   end;
@@ -392,7 +463,7 @@ begin
   if not AllValid then
     raise EAcmeClientError.Create('Authorization validation timeout');
 
-  // 3. Cleanup local resources (DNS/HTTP)
+  // --- 3. Clean up the challenge proof ---
   for Auth in Auths do
     if GetChallengeForAuth(Auth, PrefType, Chall) then
       for Solver in FSolvers do
@@ -427,10 +498,10 @@ begin
         AccountUrl := Json.GetValue<string>('AccountUrl');
         KeyPem     := Json.GetValue<string>('PrivateKeyPem');
       finally
-        Json.Free;
+        FreeAndNil(Json);
       end;
     finally
-      S.Free;
+      FreeAndNil(S);
     end;
 
     // Restore RSA key from PEM
@@ -457,7 +528,7 @@ begin
 
     Resp := JwsPost(FDirectory.NewAccountUrl, Payload, {UseKid=} False, Location);
   finally
-    Payload.Free;
+    FreeAndNil(Payload);
   end;
 
   try
@@ -467,7 +538,7 @@ begin
 
     FAccountUrl := Location;
   finally
-    Resp.Free;
+    FreeAndNil(Resp);
   end;
 
   // ==============================================================
@@ -486,13 +557,103 @@ begin
       S.Text := Json.ToJSON;
       S.SaveToFile(AccountFile, TEncoding.UTF8);
     finally
-      S.Free;
+      FreeAndNil(S);
     end;
   finally
-    Json.Free;
+    FreeAndNil(Json);
   end;
 end;
 
+function TAcmeClient.GetStorageRoot: string;
+begin
+  {$IFDEF MSWINDOWS}
+    Result := TPath.Combine(TPath.GetPublicPath, 'AcmeClient');
+  {$ELSE}
+    Result := '/etc/acme-client';
+  {$ENDIF}
+end;
+
+function TAcmeClient.GetLiveDir(const Name: string): string;
+begin
+  Result := TPath.Combine(GetStorageRoot, TPath.Combine('live', Name));
+end;
+
+function TAcmeClient.GetArchiveDir(const Name: string): string;
+begin
+  Result := TPath.Combine(GetStorageRoot, TPath.Combine('archive', Name));
+end;
+
+function TAcmeClient.GetRenewalFile(const Name: string): string;
+begin
+  Result := TPath.Combine(GetStorageRoot, TPath.Combine('renewal', Name + '.json'));
+end;
+
+function TAcmeClient.NextArchiveIndex(const Name: string): Integer;
+var
+  Archive: string;
+  Files: TArray<string>;
+  MaxIndex, I, N: Integer;
+  Base, Ext: string;
+begin
+  Archive := GetArchiveDir(Name);
+  EnsureDir(Archive);
+
+  Files := TDirectory.GetFiles(Archive, 'fullchain*.pem');
+  MaxIndex := 0;
+
+  for I := 0 to High(Files) do
+  begin
+    Base := TPath.GetFileNameWithoutExtension(Files[I]); // fullchain3
+    if TryStrToInt(Base.Replace('fullchain', ''), N) then
+      if N > MaxIndex then
+        MaxIndex := N;
+  end;
+
+  Result := MaxIndex + 1;
+end;
+
+procedure TAcmeClient.WritePemFile(const FileName, Contents: string);
+begin
+  EnsureDir(TPath.GetDirectoryName(FileName));
+  TFile.WriteAllText(FileName, Contents, TEncoding.UTF8);
+end;
+
+procedure TAcmeClient.UpdateLiveCertificate(const Name: string; Version: Integer);
+var
+  Live, Archive: string;
+{$IFDEF MSWINDOWS}
+  CertSrc, ChainSrc, FullSrc, KeySrc: string;
+{$ELSE}
+  function RelPath(const Target: string): string;
+  begin
+    Result := '../../archive/' + Name + '/' + ExtractFileName(Target);
+  end;
+{$ENDIF}
+begin
+  Live := GetLiveDir(Name);
+  Archive := GetArchiveDir(Name);
+
+  EnsureDir(Live);
+
+{$IFDEF MSWINDOWS}
+  CertSrc  := TPath.Combine(Archive, Format('cert%d.pem', [Version]));
+  ChainSrc := TPath.Combine(Archive, Format('chain%d.pem', [Version]));
+  FullSrc  := TPath.Combine(Archive, Format('fullchain%d.pem', [Version]));
+  KeySrc   := TPath.Combine(Archive, Format('privkey%d.pem', [Version]));
+
+  TFile.Copy(CertSrc,  TPath.Combine(Live, 'cert.pem'), True);
+  TFile.Copy(ChainSrc, TPath.Combine(Live, 'chain.pem'), True);
+  TFile.Copy(FullSrc,  TPath.Combine(Live, 'fullchain.pem'), True);
+  TFile.Copy(KeySrc,   TPath.Combine(Live, 'privkey.pem'), True);
+
+{$ELSE}
+  // Linux/macOS: use symlinks
+  fpSymlink(PAnsiChar(AnsiString(RelPath(CertSrc))),  PAnsiChar(AnsiString(TPath.Combine(Live, 'cert.pem'))));
+  fpSymlink(PAnsiChar(AnsiString(RelPath(ChainSrc))), PAnsiChar(AnsiString(TPath.Combine(Live, 'chain.pem'))));
+  fpSymlink(PAnsiChar(AnsiString(RelPath(FullSrc))),  PAnsiChar(AnsiString(TPath.Combine(Live, 'fullchain.pem'))));
+  fpSymlink(PAnsiChar(AnsiString(RelPath(KeySrc))),   PAnsiChar(AnsiString(TPath.Combine(Live, 'privkey.pem'))));
+{$ENDIF}
+end;
 
 
 function TAcmeClient.DownloadCertPem(const CertUrl: string): string;
@@ -504,6 +665,12 @@ begin
     raise EAcmeClientError.CreateFmt('Certificate download failed: %d %s',
       [Resp.StatusCode, Resp.StatusText]);
   Result := Resp.ContentAsString(TEncoding.ASCII);
+end;
+
+procedure TAcmeClient.EnsureDir(const Path: string);
+begin
+  if not DirectoryExists(Path) then
+    ForceDirectories(Path);
 end;
 
 procedure TAcmeClient.ObtainCertificate(const Domains: TArray<string>;
@@ -523,46 +690,49 @@ var
   CsrDer: TBytes;
   CsrB64: string;
 
-  function SplitChain(const AllPem: string; out Leaf, Chain: string): Boolean;
-  var
-    StartPos, EndPos: Integer;
-    Blocks: TArray<string>;
-    Tmp: string;
-    P, Q: Integer;
+function SplitChain(const AllPem: string; out Leaf, Chain: string): Boolean;
+const
+  PemBegin = '-----BEGIN CERTIFICATE-----';
+  PemEnd   = '-----END CERTIFICATE-----';
+var
+  Blocks: TArray<string>;
+  StartPos, EndPos: Integer;
+  S: string;
+begin
+  Result := False;
+  Leaf := '';
+  Chain := '';
+
+  S := AllPem;
+  SetLength(Blocks, 0);
+
+  while True do
   begin
-    Result := False;
-    Leaf := '';
+    StartPos := Pos(PemBegin, S);
+    if StartPos = 0 then Break;
+
+    EndPos := Pos(PemEnd, S);
+    if EndPos = 0 then Break;
+
+    EndPos := EndPos + Length(PemEnd);
+
+    Blocks := Blocks + [Copy(S, StartPos, EndPos - StartPos)];
+
+    Delete(S, 1, EndPos);
+  end;
+
+  if Length(Blocks) = 0 then
+    Exit(False);
+
+  Leaf := Blocks[0];
+
+  if Length(Blocks) > 1 then
+    Chain := String.Join(sLineBreak, Copy(Blocks, 1, Length(Blocks)-1))
+  else
     Chain := '';
 
-    Tmp := AllPem;
-    SetLength(Blocks, 0);
-
-    P := Pos('-----BEGIN CERTIFICATE-----', Tmp);
-    while P > 0 do
-    begin
-      Q := Pos('-----END CERTIFICATE-----', Tmp);
-      if Q = 0 then Break;
-      Q := Q + Length('-----END CERTIFICATE-----');
-      Blocks := Blocks + [Copy(Tmp, P, Q - P)];
-      Delete(Tmp, 1, Q);
-      P := Pos('-----BEGIN CERTIFICATE-----', Tmp);
-    end;
-
-    if Length(Blocks) = 0 then
-      Exit(False);
-
-    Leaf := Blocks[0];
-    if Length(Blocks) > 1 then
-    begin
-      Chain := '';
-      for var k := 1 to High(Blocks) do
-        Chain := Chain + Blocks[k] + sLineBreak;
-    end
-    else
-      Chain := Leaf;
-
-    Result := True;
-  end;
+  Result := True;
+end;
 
 var
   AccountFile: string;
@@ -610,7 +780,8 @@ begin
     ValidateAuthorizations(OrderObj, PrefType, OrderUrl);
 
     // 3) Generate CSR, finalize order
-    CsrDer := FAccountKey.GenerateCsrDer(Domains);  // will raise until wired
+    FCertKey := TAcmeKeyPair.GenerateRsa2048;
+    CsrDer := FCertKey.GenerateCsrDer(Domains);  // will raise until wired
     CsrB64 := Base64UrlEncode(CsrDer);
 
     Payload := TJSONObject.Create;
@@ -644,19 +815,84 @@ begin
       raise EAcmeClientError.Create('Order did not become valid or certificate URL not present');
 
     // 5) Download certificate chain
-    CertificatePem := DownloadCertPem(CertUrl);
+    var CompleteCertificatePem := DownloadCertPem(CertUrl);
 
-    if not SplitChain(CertificatePem, CertificatePem, ChainPem) then
+    if not SplitChain(CompleteCertificatePem, CertificatePem, ChainPem) then
     begin
       // fallback – no splitting possible
       ChainPem := CertificatePem;
     end;
 
     PrivateKeyPem := FAccountKey.ExportPrivateKeyPem;
+
+    SaveCertificateSet(
+        Domains,
+        CertificatePem,
+        ChainPem,
+        PrivateKeyPem,
+        FDirectoryUrl,
+        IfThen(PrefType = ctDNS01, 'dns-01', 'http-01'),
+        FDnsProviderName
+        );
+
   finally
     FreeAndNil(OrderObj);
   end;
 end;
+
+procedure TAcmeClient.SaveCertificateSet(const Domains: TArray<string>;
+  const CertPem, ChainPem, PrivateKeyPem: string;
+  const DirectoryUrl, AuthMethod, DnsProvider: string);
+var
+  Name: string;
+  Live, Archive, RenewalFile: string;
+  Version: Integer;
+  J: TJSONObject;
+begin
+  Name := Domains[0]; // Primary domain
+  Live := GetLiveDir(Name);
+  Archive := GetArchiveDir(Name);
+  RenewalFile := GetRenewalFile(Name);
+
+  EnsureDir(Live);
+  EnsureDir(Archive);
+  EnsureDir(TPath.GetDirectoryName(RenewalFile));
+
+  // Choose next archive version
+  Version := NextArchiveIndex(Name);
+
+  // Write archive copies
+  WritePemFile(TPath.Combine(Archive, Format('cert%d.pem', [Version])), CertPem);
+  WritePemFile(TPath.Combine(Archive, Format('chain%d.pem', [Version])), ChainPem);
+  WritePemFile(TPath.Combine(Archive, Format('fullchain%d.pem', [Version])),
+    CertPem + sLineBreak + ChainPem);
+  WritePemFile(TPath.Combine(Archive, Format('privkey%d.pem', [Version])), PrivateKeyPem);
+
+  // Update "live" files
+  UpdateLiveCertificate(Name, Version);
+
+  // Write renewal metadata
+  J := TJSONObject.Create;
+  try
+    var jsondomains := TJSONArray.Create;
+    for var i := 0 to High(Domains) do
+    begin
+      jsondomains.Add(Domains[i]);
+    end;
+    J.AddPair('domains', jsondomains);
+    J.AddPair('key_type', 'rsa2048');
+    J.AddPair('created', DateToISO8601(Now, False));
+    J.AddPair('last_renewed', DateToISO8601(Now, False));
+    J.AddPair('directory', DirectoryUrl);
+    J.AddPair('auth_method', AuthMethod);
+    J.AddPair('dns_provider', DnsProvider);
+
+    WritePemFile(RenewalFile, J.ToJSON);
+  finally
+    FreeAndNil(J);
+  end;
+end;
+
 
 end.
 
