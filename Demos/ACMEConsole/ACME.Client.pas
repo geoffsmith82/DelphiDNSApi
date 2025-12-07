@@ -24,7 +24,7 @@ type
     FSolvers     : TList<IAcmeChallengeSolver>;
 
     FAccountKey  : TAcmeKeyPair;
-    FAccountKid  : string;  // account URL (kid)
+    FAccountUrl  : string;  // account URL (kid)
     FAccountFile : string;
 
     procedure LoadDirectory;
@@ -186,9 +186,9 @@ begin
 
     if UseKid then
     begin
-      if FAccountKid = '' then
-        raise EAcmeClientError.Create('Account kid is empty – RegisterOrLoadAccount must complete successfully');
-      HeaderObj.AddPair('kid', FAccountKid);
+      if FAccountUrl = '' then
+        raise EAcmeClientError.Create('Account Url is empty – RegisterOrLoadAccount must complete successfully');
+      HeaderObj.AddPair('kid', FAccountUrl);
     end
     else
     begin
@@ -400,60 +400,100 @@ begin
           Solver.Cleanup(Auth.Identifier, Chall);
 end;
 
-
-
 procedure TAcmeClient.RegisterOrLoadAccount(const Email: string; const AccountFile: string);
 var
-  Obj: TJSONObject;
+  Json: TJSONObject;
+  S: TStringList;
+  KeyPem: string;
+  AccountUrl: string;
   Payload: TJSONObject;
   Resp: TJSONObject;
   Location: string;
 begin
-  FAccountFile := AccountFile;
+  // ==============================================================
+  // 1. Load existing account if file exists
+  // ==============================================================
 
-  if TFile.Exists(AccountFile) then
+  if FileExists(AccountFile) then
   begin
-    // NOTE: loading an existing account requires parsing the stored PEM
-    // back into an EVP_PKEY via TaurusTLS/OpenSSL, which we can't do here.
-    // So for now we raise and force a fresh account, which is fine for
-    // testing against the staging endpoint.
-    raise EAcmeClientError.Create('Account loading from file not implemented yet; delete the account file to create a new ACME account');
+    S := TStringList.Create;
+    try
+      S.LoadFromFile(AccountFile);
+      Json := TJSONObject.ParseJSONValue(S.Text) as TJSONObject;
+      if Json = nil then
+        raise EAcmeClientError.Create('Invalid account file JSON');
+
+      try
+        AccountUrl := Json.GetValue<string>('AccountUrl');
+        KeyPem     := Json.GetValue<string>('PrivateKeyPem');
+      finally
+        Json.Free;
+      end;
+    finally
+      S.Free;
+    end;
+
+    // Restore RSA key from PEM
+    FAccountKey := TAcmeKeyPair.LoadKeyFromPem(KeyPem);
+    FAccountUrl := AccountUrl;
+
+    Exit; // fully loaded; ready for ACME use
   end;
 
-  // Fresh account
-  FreeAndNil(FAccountKey);
-  FAccountKey := TAcmeKeyPair.GenerateRsa2048;  // will raise until wired to TaurusTLS
+  // ==============================================================
+  // 2. No existing account → Register new one
+  // ==============================================================
 
+  // Generate RSA-2048 account key
+  FAccountKey := TAcmeKeyPair.GenerateRsa2048;
+
+  // Prepare ACME newAccount payload
   Payload := TJSONObject.Create;
   try
     Payload.AddPair('termsOfServiceAgreed', TJSONBool.Create(True));
     if Email <> '' then
-      Payload.AddPair('contact', TJSONArray.Create(TJSONString.Create('mailto:' + Email)));
+      Payload.AddPair('contact',
+        TJSONArray.Create(TJSONString.Create('mailto:' + Email)));
 
-    Resp := JwsPost(FDirectory.NewAccountUrl, Payload, False, Location);
+    Resp := JwsPost(FDirectory.NewAccountUrl, Payload, {UseKid=} False, Location);
   finally
     Payload.Free;
   end;
 
   try
+    // ACME returns the account URL (kid) in Location header
     if Location = '' then
-      raise EAcmeClientError.Create('ACME newAccount response missing Location header (account URL)');
-    FAccountKid := Location;
+      raise EAcmeClientError.Create('newAccount: missing Location header');
+
+    FAccountUrl := Location;
   finally
-    FreeAndNil(Resp);
+    Resp.Free;
   end;
 
-  // Persist account info for later (keyPem loading is not implemented yet)
-  Obj := TJSONObject.Create;
+  // ==============================================================
+  // 3. Save account to disk
+  // ==============================================================
+
+  Json := TJSONObject.Create;
   try
-    Obj.AddPair('kid', FAccountKid);
-    Obj.AddPair('keyType', IfThen(FAccountKey.KeyType = akRsa2048, 'rsa2048', 'ecp256'));
-    Obj.AddPair('keyPem', FAccountKey.ExportPrivateKeyPem);
-    TFile.WriteAllText(AccountFile, Obj.ToJSON, TEncoding.UTF8);
+    KeyPem := FAccountKey.ExportPrivateKeyPem;
+
+    Json.AddPair('AccountUrl', FAccountUrl);
+    Json.AddPair('PrivateKeyPem', KeyPem);
+
+    S := TStringList.Create;
+    try
+      S.Text := Json.ToJSON;
+      S.SaveToFile(AccountFile, TEncoding.UTF8);
+    finally
+      S.Free;
+    end;
   finally
-    FreeAndNil(Obj);
+    Json.Free;
   end;
 end;
+
+
 
 function TAcmeClient.DownloadCertPem(const CertUrl: string): string;
 var
