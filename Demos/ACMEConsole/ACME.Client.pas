@@ -5,37 +5,45 @@ interface
 uses
   System.SysUtils,
   System.Classes,
+  System.StrUtils,
   System.Generics.Collections,
   System.Net.HttpClient,
   System.Net.URLClient,
   System.JSON,
-  ACME.Client.Types;
+  ACME.Client.Types,
+  ACME.TaurusCrypto;
 
 type
+  EAcmeClientError = class(Exception);
 
-
-
-
-
-
-  // High-level ACME client
   TAcmeClient = class
   private
-    FHttp       : THTTPClient;
-    FDirectory  : TAcmeDirectory;
+    FHttp        : THTTPClient;
     FDirectoryUrl: string;
-    FSolvers    : TList<IAcmeChallengeSolver>;
-    FAccountKey : string; // PEM / JWK / whatever you decide
+    FDirectory   : TAcmeDirectory;
+    FSolvers     : TList<IAcmeChallengeSolver>;
+
+    FAccountKey  : TAcmeKeyPair;
+    FAccountKid  : string;  // account URL (kid)
+    FAccountFile : string;
+
     procedure LoadDirectory;
     function NewNonce: string;
 
-    function JwsPost(const Url: string; const Payload: TJSONObject): TJSONObject;
+    function RawPost(const Url, JwsBody: string; out Location: string): TJSONObject;
+    function JwsPost(const Url: string; Payload: TJSONValue;
+      UseKid: Boolean; out Location: string): TJSONObject;
+
+    function StatusFromStr(const S: string): TAcmeAuthorizationStatus;
     function GetAuthorizationsForOrder(const OrderObj: TJSONObject): TArray<TAcmeAuthorization>;
+    function GetChallengeForAuth(const Auth: TAcmeAuthorization;
+      PrefType: TChallengeType; out Chall: TAcmeChallenge): Boolean;
 
     function ComputeKeyAuthorization(const Token: string): string;
-    function ComputeDns01TxtValue(const KeyAuthorization: string): string;
+    procedure ValidateAuthorizations(const OrderObj: TJSONObject;
+      PrefType: TChallengeType; const OrderUrl: string);
 
-    procedure ValidateAuthorizations(const Auths: TArray<TAcmeAuthorization>; PrefType: TChallengeType);
+    function DownloadCertPem(const CertUrl: string): string;
   public
     constructor Create(const ADirectoryUrl: string = 'https://acme-v02.api.letsencrypt.org/directory');
     destructor Destroy; override;
@@ -56,29 +64,10 @@ implementation
 uses
   System.Hash,
   System.NetEncoding,
-  System.Math;
+  System.Math,
+  System.IOUtils;
 
-{ Helper functions }
-
-function Base64UrlEncode(const Bytes: TBytes): string;
-begin
-  Result := TNetEncoding.Base64.EncodeBytesToString(Bytes);
-  Result := Result.Replace('+', '-').Replace('/', '_').Replace('=', '');
-end;
-
-function ComputeDns01TxtValue(const KeyAuthorization: string): string;
-var
-  HashBytes: TBytes;
-begin
-  HashBytes := THashSHA2.GetHashBytes(KeyAuthorization);
-  Result := Base64UrlEncode(HashBytes);
-end;
-
-
-
-
-
-{ TAcmeClient }
+{ TAcmeClient *****************************************************************}
 
 constructor TAcmeClient.Create(const ADirectoryUrl: string);
 begin
@@ -91,6 +80,7 @@ end;
 
 destructor TAcmeClient.Destroy;
 begin
+  FreeAndNil(FAccountKey);
   FreeAndNil(FSolvers);
   FreeAndNil(FHttp);
   inherited;
@@ -104,17 +94,20 @@ end;
 procedure TAcmeClient.LoadDirectory;
 var
   Resp: IHTTPResponse;
-  Obj, Meta: TJSONObject;
+  Obj: TJSONObject;
 begin
   Resp := FHttp.Get(FDirectoryUrl);
+  if (Resp.StatusCode div 100) <> 2 then
+    raise EAcmeClientError.CreateFmt('Directory GET failed: %d %s',
+      [Resp.StatusCode, Resp.StatusText]);
+
   Obj := TJSONObject.ParseJSONValue(Resp.ContentAsString) as TJSONObject;
   try
-    Meta := Obj.GetValue('meta') as TJSONObject;
-    FDirectory.NewNonceUrl   := Obj.GetValue('newNonce').Value;
-    FDirectory.NewAccountUrl := Obj.GetValue('newAccount').Value;
-    FDirectory.NewOrderUrl   := Obj.GetValue('newOrder').Value;
+    FDirectory.NewNonceUrl   := Obj.GetValue<string>('newNonce');
+    FDirectory.NewAccountUrl := Obj.GetValue<string>('newAccount');
+    FDirectory.NewOrderUrl   := Obj.GetValue<string>('newOrder');
   finally
-    Obj.Free;
+    FreeAndNil(Obj);
   end;
 end;
 
@@ -123,87 +116,506 @@ var
   Resp: IHTTPResponse;
 begin
   Resp := FHttp.Head(FDirectory.NewNonceUrl);
+  if (Resp.StatusCode div 100) <> 2 then
+    raise EAcmeClientError.CreateFmt('newNonce failed: %d %s',
+      [Resp.StatusCode, Resp.StatusText]);
   Result := Resp.HeaderValue['Replay-Nonce'];
 end;
 
-function TAcmeClient.JwsPost(const Url: string; const Payload: TJSONObject): TJSONObject;
+function TAcmeClient.RawPost(const Url, JwsBody: string; out Location: string): TJSONObject;
+var
+  Resp: IHTTPResponse;
+  Content: TStringStream;
+  Headers: TNetHeaders;
 begin
-  // TODO:
-  //  1. Build JWS header with kid/jwk, nonce, url, alg
-  //  2. Base64Url encode header & payload
-  //  3. Sign with account key (OpenSSL / CryptoAPI / etc)
-  //  4. POST {"protected": "...","payload": "...","signature":"..."}
-  //  5. Return parsed JSON object
-  Result := nil;
-  raise ENotImplemented.Create('JwsPost is not implemented yet');
+  Location := '';
+
+  SetLength(Headers, 1);
+  Headers[0].Name  := 'Content-Type';
+  Headers[0].Value := 'application/jose+json';
+
+  Content := TStringStream.Create(JwsBody, TEncoding.UTF8);
+  try
+    Resp := FHttp.Post(Url, Content, nil, Headers);
+  finally
+    FreeAndNil(Content);
+  end;
+
+  if Resp = nil then
+    raise EAcmeClientError.Create('HTTP POST returned nil response');
+
+  Location := Resp.HeaderValue['Location'];
+
+  if (Resp.StatusCode < 200) or (Resp.StatusCode >= 300) then
+    raise EAcmeClientError.CreateFmt(
+      'POST %s failed: %d %s%s%s',
+      [Url, Resp.StatusCode, Resp.StatusText, sLineBreak, Resp.ContentAsString]
+    );
+
+  if Resp.ContentLength = 0 then
+    Exit(nil);
+
+  Result := TJSONObject.ParseJSONValue(Resp.ContentAsString) as TJSONObject;
+end;
+
+
+function TAcmeClient.JwsPost(const Url: string; Payload: TJSONValue;
+  UseKid: Boolean; out Location: string): TJSONObject;
+var
+  Nonce: string;
+  HeaderObj: TJSONObject;
+  ProtectedHdr, ProtectedB64: string;
+  PayloadStr, PayloadB64: string;
+  SignatureB64: string;
+  BodyObj: TJSONObject;
+begin
+  Nonce := NewNonce;
+
+  HeaderObj := TJSONObject.Create;
+  try
+    if FAccountKey = nil then
+      raise EAcmeClientError.Create('Account key not initialised (TAcmeKeyPair.GenerateRsa2048 must be implemented)');
+
+    if FAccountKey.KeyType = akRsa2048 then
+      HeaderObj.AddPair('alg', 'RS256')
+    else
+      HeaderObj.AddPair('alg', 'ES256');
+
+    HeaderObj.AddPair('nonce', Nonce);
+    HeaderObj.AddPair('url', Url);
+
+    if UseKid then
+    begin
+      if FAccountKid = '' then
+        raise EAcmeClientError.Create('Account kid is empty – RegisterOrLoadAccount must complete successfully');
+      HeaderObj.AddPair('kid', FAccountKid);
+    end
+    else
+    begin
+      // JWK-based header for newAccount
+      HeaderObj.AddPair('jwk', FAccountKey.BuildJwk); // BuildJwk must be implemented in TaurusTLS layer
+    end;
+
+    ProtectedHdr := HeaderObj.ToJSON;
+  finally
+    FreeAndNil(HeaderObj);
+  end;
+
+  ProtectedB64 := Base64UrlEncodeStr(ProtectedHdr);
+
+  if Assigned(Payload) then
+    PayloadStr := Payload.ToJSON
+  else
+    PayloadStr := '{}'; // POST-as-GET
+
+  PayloadB64 := Base64UrlEncodeStr(PayloadStr);
+
+  SignatureB64 := FAccountKey.SignJws(ProtectedB64, PayloadB64);
+
+  BodyObj := TJSONObject.Create;
+  try
+    BodyObj.AddPair('protected', ProtectedB64);
+    BodyObj.AddPair('payload', PayloadB64);
+    BodyObj.AddPair('signature', SignatureB64);
+
+    Result := RawPost(Url, BodyObj.ToJSON, Location);
+  finally
+    FreeAndNil(BodyObj);
+  end;
+end;
+
+function TAcmeClient.StatusFromStr(const S: string): TAcmeAuthorizationStatus;
+begin
+  if SameText(S, 'valid') then
+    Result := asValid
+  else if SameText(S, 'pending') then
+    Result := asPending
+  else
+    Result := asInvalid;
 end;
 
 function TAcmeClient.GetAuthorizationsForOrder(
   const OrderObj: TJSONObject): TArray<TAcmeAuthorization>;
+var
+  AuthUrls: TJSONArray;
+  Auths: TList<TAcmeAuthorization>;
+  I: Integer;
+  Url: string;
+  Resp: IHTTPResponse;
+  AuthObj, IdentObj: TJSONObject;
+  ChallArr: TJSONArray;
+  J: Integer;
+  A: TAcmeAuthorization;
+  C: TAcmeChallenge;
+  ChallObj: TJSONObject;
 begin
-  // TODO: follow "authorizations" URLs in order object and build records
-  SetLength(Result, 0);
+  AuthUrls := OrderObj.GetValue('authorizations') as TJSONArray;
+  if AuthUrls = nil then
+    Exit(nil);
+
+  Auths := TList<TAcmeAuthorization>.Create;
+  try
+    for I := 0 to AuthUrls.Count - 1 do
+    begin
+      Url := AuthUrls.Items[I].Value;
+      Resp := FHttp.Get(Url);
+      if (Resp.StatusCode div 100) <> 2 then
+        raise EAcmeClientError.CreateFmt('Get auth failed: %d %s',
+          [Resp.StatusCode, Resp.StatusText]);
+
+      AuthObj := TJSONObject.ParseJSONValue(Resp.ContentAsString) as TJSONObject;
+      try
+        IdentObj := AuthObj.GetValue('identifier') as TJSONObject;
+        A.Identifier := IdentObj.GetValue<string>('value');
+        A.Status := StatusFromStr(AuthObj.GetValue<string>('status'));
+
+        ChallArr := AuthObj.GetValue('challenges') as TJSONArray;
+        SetLength(A.Challenges, ChallArr.Count);
+        for J := 0 to ChallArr.Count - 1 do
+        begin
+          ChallObj := ChallArr.Items[J] as TJSONObject;
+          C.ChallengeType := ChallObj.GetValue<string>('type');
+          C.Url           := ChallObj.GetValue<string>('url');
+          C.Token         := ChallObj.GetValue<string>('token');
+          A.Challenges[J] := C;
+        end;
+
+        Auths.Add(A);
+      finally
+        AuthObj.Free;
+      end;
+    end;
+
+    Result := Auths.ToArray;
+  finally
+    FreeAndNil(Auths);
+  end;
+end;
+
+function TAcmeClient.GetChallengeForAuth(const Auth: TAcmeAuthorization;
+  PrefType: TChallengeType; out Chall: TAcmeChallenge): Boolean;
+var
+  I: Integer;
+  Wanted: string;
+begin
+  case PrefType of
+    ctDns01:  Wanted := 'dns-01';
+    ctHttp01: Wanted := 'http-01';
+  else
+    Wanted := '';
+  end;
+
+  // First try preferred type
+  for I := 0 to Length(Auth.Challenges) - 1 do
+    if SameText(Auth.Challenges[I].ChallengeType, Wanted) then
+    begin
+      Chall := Auth.Challenges[I];
+      Exit(True);
+    end;
+
+  // Fallback to first available challenge
+  if Length(Auth.Challenges) > 0 then
+  begin
+    Chall := Auth.Challenges[0];
+    Exit(True);
+  end;
+
+  Result := False;
 end;
 
 function TAcmeClient.ComputeKeyAuthorization(const Token: string): string;
+begin
+  if FAccountKey = nil then
+    raise EAcmeClientError.Create('Account key not initialised');
+  Result := Token + '.' + FAccountKey.ComputeJwkThumbprint;
+end;
+
+procedure TAcmeClient.ValidateAuthorizations(const OrderObj: TJSONObject;
+  PrefType: TChallengeType; const OrderUrl: string);
 var
-  ThumbprintBytes: TBytes;
+  Auths: TArray<TAcmeAuthorization>;
+  Auth: TAcmeAuthorization;
+  Chall: TAcmeChallenge;
+  Solver: IAcmeChallengeSolver;
+  KeyAuth: string;
+  dummy: string;
+  Payload: TJSONObject;
+  Resp: TJSONObject;
+  AllValid: Boolean;
+  Attempt: Integer;
 begin
-  // TODO:
-  //  - Build JWK from account key
-  //  - Compute SHA-256 over canonical JWK JSON
-  //  - Base64Url encode → thumbprint
-  // For now, just stub:
-  ThumbprintBytes := TEncoding.UTF8.GetBytes('TODO-thumbprint');
-  Result := Token + '.' + Base64UrlEncode(ThumbprintBytes);
+  // 1. Present challenges
+  Auths := GetAuthorizationsForOrder(OrderObj);
+
+  for Auth in Auths do
+  begin
+    if not GetChallengeForAuth(Auth, PrefType, Chall) then
+      raise EAcmeClientError.CreateFmt('No suitable challenge for %s', [Auth.Identifier]);
+
+    Solver := nil;
+    for Solver in FSolvers do
+      if Solver.CanSolve(Chall.ChallengeType) then
+        Break;
+
+    if (Solver = nil) or (not Solver.CanSolve(Chall.ChallengeType)) then
+      raise EAcmeClientError.CreateFmt('No solver for challenge type %s', [Chall.ChallengeType]);
+
+    KeyAuth := ComputeKeyAuthorization(Chall.Token);
+    Solver.Solve(Auth.Identifier, Chall, KeyAuth);
+
+    // Notify ACME that challenge is ready (empty JSON)
+    Payload := TJSONObject.Create;
+    try
+      Resp := JwsPost(Chall.Url, Payload, True, dummy); // Location ignored here
+    finally
+      FreeAndNil(Payload);
+      FreeAndNil(Resp);
+    end;
+  end;
+
+  // 2. Poll authorizations until all are valid or timeout
+  for Attempt := 1 to 30 do
+  begin
+    Sleep(2000);
+    Auths := GetAuthorizationsForOrder(OrderObj);
+    AllValid := True;
+    for Auth in Auths do
+      if Auth.Status <> asValid then
+      begin
+        AllValid := False;
+        Break;
+      end;
+    if AllValid then
+      Break;
+  end;
+
+  if not AllValid then
+    raise EAcmeClientError.Create('Authorization validation timeout');
+
+  // 3. Cleanup local resources (DNS/HTTP)
+  for Auth in Auths do
+    if GetChallengeForAuth(Auth, PrefType, Chall) then
+      for Solver in FSolvers do
+        if Solver.CanSolve(Chall.ChallengeType) then
+          Solver.Cleanup(Auth.Identifier, Chall);
 end;
 
-function TAcmeClient.ComputeDns01TxtValue(const KeyAuthorization: string): string;
+
+
+procedure TAcmeClient.RegisterOrLoadAccount(const Email: string; const AccountFile: string);
 var
-  HashBytes: TBytes;
+  Obj: TJSONObject;
+  Payload: TJSONObject;
+  Resp: TJSONObject;
+  Location: string;
 begin
-  HashBytes := THashSHA2.GetHashBytes(KeyAuthorization);
-  Result := Base64UrlEncode(HashBytes);
+  FAccountFile := AccountFile;
+
+  if TFile.Exists(AccountFile) then
+  begin
+    // NOTE: loading an existing account requires parsing the stored PEM
+    // back into an EVP_PKEY via TaurusTLS/OpenSSL, which we can't do here.
+    // So for now we raise and force a fresh account, which is fine for
+    // testing against the staging endpoint.
+    raise EAcmeClientError.Create('Account loading from file not implemented yet; delete the account file to create a new ACME account');
+  end;
+
+  // Fresh account
+  FreeAndNil(FAccountKey);
+  FAccountKey := TAcmeKeyPair.GenerateRsa2048;  // will raise until wired to TaurusTLS
+
+  Payload := TJSONObject.Create;
+  try
+    Payload.AddPair('termsOfServiceAgreed', TJSONBool.Create(True));
+    if Email <> '' then
+      Payload.AddPair('contact', TJSONArray.Create(TJSONString.Create('mailto:' + Email)));
+
+    Resp := JwsPost(FDirectory.NewAccountUrl, Payload, False, Location);
+  finally
+    Payload.Free;
+  end;
+
+  try
+    if Location = '' then
+      raise EAcmeClientError.Create('ACME newAccount response missing Location header (account URL)');
+    FAccountKid := Location;
+  finally
+    FreeAndNil(Resp);
+  end;
+
+  // Persist account info for later (keyPem loading is not implemented yet)
+  Obj := TJSONObject.Create;
+  try
+    Obj.AddPair('kid', FAccountKid);
+    Obj.AddPair('keyType', IfThen(FAccountKey.KeyType = akRsa2048, 'rsa2048', 'ecp256'));
+    Obj.AddPair('keyPem', FAccountKey.ExportPrivateKeyPem);
+    TFile.WriteAllText(AccountFile, Obj.ToJSON, TEncoding.UTF8);
+  finally
+    FreeAndNil(Obj);
+  end;
 end;
 
-procedure TAcmeClient.ValidateAuthorizations(const Auths: TArray<TAcmeAuthorization>; PrefType: TChallengeType);
+function TAcmeClient.DownloadCertPem(const CertUrl: string): string;
+var
+  Resp: IHTTPResponse;
 begin
-  // TODO:
-  //  For each auth:
-  //   - Pick dns-01 or http-01 challenge based on PrefType,
-  //     falling back if that type not present
-  //   - Find IAcmeChallengeSolver that CanSolve(challenge.type)
-  //   - Compute keyAuthorization
-  //   - solver.Solve(...)
-  //   - POST {} to challenge.url (JwsPost)
-  //   - Poll authorization URL until status=valid or timeout
-  //   - solver.Cleanup(...)
-end;
-
-procedure TAcmeClient.RegisterOrLoadAccount(const Email, AccountFile: string);
-begin
-  // TODO:
-  //  - If AccountFile exists, load FAccountKey + account URL (kid)
-  //  - Else:
-  //     > generate new key pair
-  //     > POST newAccount with contact ["mailto:..."] and termsOfServiceAgreed
-  //     > store account URL and key to AccountFile
+  Resp := FHttp.Get(CertUrl);
+  if (Resp.StatusCode div 100) <> 2 then
+    raise EAcmeClientError.CreateFmt('Certificate download failed: %d %s',
+      [Resp.StatusCode, Resp.StatusText]);
+  Result := Resp.ContentAsString(TEncoding.ASCII);
 end;
 
 procedure TAcmeClient.ObtainCertificate(const Domains: TArray<string>;
   const Email: string; out CertificatePem, PrivateKeyPem, ChainPem: string;
   PrefType: TChallengeType; UseStaging: Boolean);
+var
+  Payload: TJSONObject;
+  IdArr: TJSONArray;
+  IdentObj: TJSONObject;
+  I: Integer;
+  Resp, OrderObj: TJSONObject;
+  OrderUrl, FinalizeUrl: string;
+  Location: string;
+  Attempts: Integer;
+  Status: string;
+  CertUrl: string;
+  CsrDer: TBytes;
+  CsrB64: string;
+
+  function SplitChain(const AllPem: string; out Leaf, Chain: string): Boolean;
+  var
+    StartPos, EndPos: Integer;
+    Blocks: TArray<string>;
+    Tmp: string;
+    P, Q: Integer;
+  begin
+    Result := False;
+    Leaf := '';
+    Chain := '';
+
+    Tmp := AllPem;
+    SetLength(Blocks, 0);
+
+    P := Pos('-----BEGIN CERTIFICATE-----', Tmp);
+    while P > 0 do
+    begin
+      Q := Pos('-----END CERTIFICATE-----', Tmp);
+      if Q = 0 then Break;
+      Q := Q + Length('-----END CERTIFICATE-----');
+      Blocks := Blocks + [Copy(Tmp, P, Q - P)];
+      Delete(Tmp, 1, Q);
+      P := Pos('-----BEGIN CERTIFICATE-----', Tmp);
+    end;
+
+    if Length(Blocks) = 0 then
+      Exit(False);
+
+    Leaf := Blocks[0];
+    if Length(Blocks) > 1 then
+    begin
+      Chain := '';
+      for var k := 1 to High(Blocks) do
+        Chain := Chain + Blocks[k] + sLineBreak;
+    end
+    else
+      Chain := Leaf;
+
+    Result := True;
+  end;
+
+var
+  AccountFile: string;
 begin
-  // TODO (high-level outline):
-  // 1. RegisterOrLoadAccount(...)
-  // 2. Create "newOrder" payload with identifiers (dns names)
-  // 3. JwsPost(FDirectory.NewOrderUrl, payload) → orderObj
-  // 4. GetAuthorizationsForOrder(orderObj) → auths[]
-  // 5. ValidateAuthorizations(auths, PrefType)
-  // 6. Generate keypair for certificate; build CSR with Domains[]
-  // 7. POST CSR to "finalize" URL
-  // 8. Poll order URL until status=valid, then download certificate URL
-  // 9. Split PEM into CertificatePem, ChainPem; PrivateKeyPem from (6)
+  if Length(Domains) = 0 then
+    raise EAcmeClientError.Create('No domains specified for certificate request');
+
+  // Decide where to store account info (simple default path)
+  AccountFile := TPath.Combine(TPath.GetHomePath, 'acme-account.json');
+
+  RegisterOrLoadAccount(Email, AccountFile);
+
+  // 1) newOrder
+  Payload := TJSONObject.Create;
+  IdArr := TJSONArray.Create;
+  try
+    for I := 0 to High(Domains) do
+    begin
+      IdentObj := TJSONObject.Create;
+      IdentObj.AddPair('type', 'dns');
+      IdentObj.AddPair('value', Domains[I]);
+      IdArr.AddElement(IdentObj);
+    end;
+    Payload.AddPair('identifiers', IdArr);
+
+    Resp := JwsPost(FDirectory.NewOrderUrl, Payload, True, Location);
+  finally
+    FreeAndNil(Payload);
+  end;
+
+  OrderObj := Resp;
+  try
+    OrderUrl := Location;
+    if OrderUrl = '' then
+      // Some servers also include "location" or "url" in payload; try to read it
+      if OrderObj.TryGetValue<string>('location', OrderUrl) then
+      else if OrderObj.TryGetValue<string>('url', OrderUrl) then
+        // ok
+      else
+        raise EAcmeClientError.Create('Order URL not found (Location header or url field)');
+
+    FinalizeUrl := OrderObj.GetValue<string>('finalize');
+
+    // 2) Solve authorizations
+    ValidateAuthorizations(OrderObj, PrefType, OrderUrl);
+
+    // 3) Generate CSR, finalize order
+    CsrDer := FAccountKey.GenerateCsrDer(Domains);  // will raise until wired
+    CsrB64 := Base64UrlEncode(CsrDer);
+
+    Payload := TJSONObject.Create;
+    try
+      Payload.AddPair('csr', CsrB64);
+      Resp := JwsPost(FinalizeUrl, Payload, True, Location);
+    finally
+      FreeAndNil(Payload);
+      FreeAndNil(Resp);
+    end;
+
+    // 4) Poll order until valid and certificate URL present
+    CertUrl := '';
+    for Attempts := 1 to 30 do
+    begin
+      Sleep(2000);
+      Resp := JwsPost(OrderUrl, nil, True, Location);
+      try
+        Status := Resp.GetValue<string>('status');
+        if SameText(Status, 'valid') then
+        begin
+          CertUrl := Resp.GetValue<string>('certificate');
+          Break;
+        end;
+      finally
+        FreeAndNil(Resp);
+      end;
+    end;
+
+    if CertUrl = '' then
+      raise EAcmeClientError.Create('Order did not become valid or certificate URL not present');
+
+    // 5) Download certificate chain
+    CertificatePem := DownloadCertPem(CertUrl);
+
+    if not SplitChain(CertificatePem, CertificatePem, ChainPem) then
+    begin
+      // fallback – no splitting possible
+      ChainPem := CertificatePem;
+    end;
+
+    PrivateKeyPem := FAccountKey.ExportPrivateKeyPem;
+  finally
+    FreeAndNil(OrderObj);
+  end;
 end;
 
 end.

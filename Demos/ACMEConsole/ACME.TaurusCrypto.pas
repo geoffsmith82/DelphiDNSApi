@@ -38,6 +38,8 @@ type
 
     // CSR with SANs (DNS:domain1, DNS:domain2, ...)
     function GenerateCsrPem(const Domains: TArray<string>): string;
+    // new wrapper: PEM → DER bytes
+    function GenerateCsrDer(const Domains: TArray<string>): TBytes;
 
     property KeyType: TAcmeKeyType read FKeyType;
     property RawKey: Pointer read FKey; // EVP_PKEY*
@@ -237,6 +239,35 @@ begin
       raise EAcmeCryptoError.Create('Empty domain not allowed');
 
   raise EAcmeCryptoError.Create('GenerateCsrPem not implemented');
+end;
+
+function TAcmeKeyPair.GenerateCsrDer(const Domains: TArray<string>): TBytes;
+var
+  Pem, Base64Body: string;
+  Lines: TArray<string>;
+  Line: string;
+begin
+  // This assumes you implement GenerateCsrPem to return a standard PEM CSR:
+  // -----BEGIN CERTIFICATE REQUEST-----
+  // base64...
+  // -----END CERTIFICATE REQUEST-----
+
+  Pem := GenerateCsrPem(Domains);  // <- your TaurusTLS/OpenSSL code will live there
+
+  // Strip header/footer and whitespace to get plain base64
+  Base64Body := '';
+  Lines := Pem.Replace(#13, '').Split([#10]);
+  for Line in Lines do
+  begin
+    if (Line = '') then
+      Continue;
+    if Line.StartsWith('-----') then
+      Continue;
+    Base64Body := Base64Body + Line.Trim;
+  end;
+
+  // Decode base64 → DER bytes
+  Result := TNetEncoding.Base64.DecodeStringToBytes(Base64Body);
 end;
 
 end.

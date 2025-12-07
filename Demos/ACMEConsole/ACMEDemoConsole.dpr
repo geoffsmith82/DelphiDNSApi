@@ -56,10 +56,10 @@ begin
         TFile.WriteAllText('privkey.pem', KeyPem, TEncoding.UTF8);
         TFile.WriteAllText('chain.pem', ChainPem, TEncoding.UTF8);
       finally
-        Client.Free;
+        FreeAndNil(Client);
       end;
     finally
-      DnsProvider.Free;
+      FreeAndNil(DnsProvider);
     end;
   except
     on E: Exception do
