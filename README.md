@@ -1,132 +1,197 @@
-# Delphi DNS API Library & Demonstration App
+# Delphi DNS API Library, Demonstration App & ACME Certificate Client
 
-A **Delphi FMX application** for managing DNS zones and records via cloud provider APIs. The core of this project is a **Delphi DNS API library** that provides a consistent interface to multiple DNS provider APIs, with the FMX app serving primarily as a demonstration and test tool for the API layer. The initial release supports **Vultr Cloud DNS**, **DigitalOcean DNS** and **Microsoft Azure DNS** with a modular architecture designed to support additional providers such as **Cloudflare**, **AWS Route53**, **Google Cloud DNS**, and others in future versions.
+A comprehensive **Delphi FMX application** and **DNS API library** designed for managing DNS zones/records across multiple cloud providers.
+Now extended with a full **ACME Certificate Client** supporting **DNS-01 authentication**, enabling automated SSL/TLS certificate issuance similar to Certbot — but in native Delphi.
+
+This project now includes:
+
+* A modular **DNS provider system**
+* A cross-platform **FMX DNS Manager UI**
+* A new **ACME certificate module** with:
+
+  * ACME Account registration
+  * Order creation, authorization tracking
+  * DNS-01 challenge handling
+  * Certificate finalisation and chain splitting
+  * Automatic certificate storage (Windows/Linux compatible)
 
 ---
 
 ## 🚀 Features
 
-- **Manage DNS zones** from supported providers.
-- **Add and delete zones** directly from the UI.
-- **View and manage DNS records** for each zone.
-- **Add, edit, and delete DNS records** through provider APIs.
-- **API key setup panel** for securely storing provider credentials.
-- **Modular provider system** to support multiple DNS APIs.
-- **Modern FMX UI** with animated modal panels and responsive layouts.
-- **Cross-platform support** — Windows, macOS, and mobile.
+### DNS Management
+
+* **Manage DNS zones** from supported providers.
+* **Create and delete zones** via the UI.
+* **Add, edit, delete DNS records** using provider APIs.
+* **Secure credential storage** for provider API keys.
+* **Consistent interface** across all DNS providers.
+* **FMX UI with animated panels & responsive layouts**.
+
+### 🔐 ACME Certificate Client (New!)
+
+* Fully implemented **ACME v2 client** (Let’s Encrypt / Buypass / ZeroSSL compatible).
+* Uses **DNS-01 validation** via your selected DNS provider.
+* Native Delphi implementation of:
+
+  * JWK account key
+  * JWS-signed ACME requests
+  * Nonces, directory discovery, account registration
+  * Order lifecycle management
+  * Authorization + DNS challenge preparation
+  * Finalization and certificate retrieval
+* **Automatic certificate storage**, structured like Certbot:
+
+  * `/etc/letsencrypt/live/<domain>` on Linux
+  * `%ProgramData%\Acme\<domain>` on Windows
+* Built-in certificate chain splitting (`cert.pem`, `chain.pem`, `fullchain.pem`)
+* Cross-platform support (Windows, Linux, macOS)
 
 ---
 
 ## ⚙️ Requirements
 
-- **Delphi 11+ (FMX Framework)**
-- API credentials for one or more supported providers (e.g., **Vultr API key**)
-- **Internet connection** for API communication
+* **Delphi 11+ (FMX Framework)**
+* DNS provider API credentials (e.g., Vultr, DigitalOcean)
+* Internet access for DNS and ACME API calls
+* Domain name that you control (for ACME validation)
 
 ---
 
 ## 🧠 Architecture
 
-- **Core Focus:** A reusable **DNS API abstraction layer** written in Delphi that defines provider-neutral interfaces for DNS operations.
-- The accompanying **FMX app** demonstrates the use of this API in a GUI context.
-- Built around **FMX** visual components and **TRESTClient** for RESTful communication.
-- Extensible architecture: each DNS provider implements a shared interface defined in `DNS.Base`.
-- Asynchronous operations (via `TTask` and `TThread.Synchronize`) ensure a responsive UI.
-- Clean separation of concerns between UI, provider logic, and domain model.
+### DNS API Layer
+
+* Reusable **provider-neutral abstraction** in `DNS.Base`.
+* Provider modules implement zone/record CRUD via a shared class structure.
+* Asynchronous operations using `TTask` & `Synchronize`.
+
+### ACME Certificate System (New)
+
+* Located in `ACME.Client.*` units.
+* Modular design:
+
+  * `TACMEClient` — high-level API
+
+* Integrates with **any DNS provider** that supports TXT record management.
 
 ---
 
-## 🔑 Setup Instructions
+## 🔧 Setup Instructions
+
+### DNS Manager
 
 1. Open the project in **Delphi 11+**.
-2. Run the application.
-3. When prompted, enter your **API key** for the appropriate DNS provider.
-4. Manage zones and records via the intuitive tabbed interface.
-5. Use the record and zone panels to create or modify entries.
+2. Enter the API key for your DNS provider.
+3. Manage DNS zones and records through the UI.
+
+### ACME Certificate Client (DNS-01)
+
+1. Create an ACME account (staging or production).
+2. Start a new certificate order.
+3. The client automatically:
+
+   * Generates DNS-01 TXT record content
+   * Publishes it using your selected DNS provider
+   * Waits for propagation
+   * Notifies the ACME server
+4. Upon successful validation:
+
+   * Certificates are finalized
+   * Stored in a Certbot-compatible folder structure
+   * Returned to the application for further processing
 
 ---
 
-## 🧩 Planned Multi-Provider Support
+## 🧩 Multi-Provider Support (DNS + ACME)
 
-This project is being expanded to support additional DNS APIs. Planned providers include:
+This project now supports DNS + ACME DNS-01 workflows for the following providers:
 
-| Provider | Status |
-|-----------|---------|
-| **Vultr DNS** | ✅ Implemented |
-| **DigitalOcean DNS** | ✅ Implemented |
-| **Microsoft Azure DNS** | ✅ Implemented |
-| **Bunny.net DNS** | ⏳ UNTESTED |
-| **Cloudflare DNS** | ⏳ UNTESTED |
-| **AWS Route53** | ⏳ UNTESTED |
-| **Google Cloud DNS** | ⏳ UNTESTED |
-| **GoDaddy** | ⏳ PLANNED |
-| **Namecheap** | ⏳ PLANNED |
-| **BinaryLane (AU)** | ⏳ PLANNED |
-| **IBM Cloud DNS** | ⏳ PLANNED |
-| **PowerDNS** | ⏳ PLANNED |
-| **OpenStack Designate** | ⏳ PLANNED |
-
-Each provider will implement a shared base class (`TBaseDNSProvider`) to ensure consistency across operations like listing zones, managing records, and authentication. With all the above providers Implemented, it should provide over 90% of the market - according to ChatGPT. A few Australian ones are planned - because I am from there!
-
-## TODO
- - Bunny.net, Cloudflare, AWS Route 53 and Google Cloud DNS have been implemented, but currently have not been tested.
- - Improve handling of Authentication / handle OAuth authentication better on providers that use it.
- - Create Unit tests that test the different record types as well as the different operations add/update/delete
+| Provider                | DNS Support | ACME-DNS Ready               |
+| ----------------------- | ----------- | ---------------------------- |
+| **Vultr DNS**           | ✅           | ✅                            |
+| **DigitalOcean DNS**    | ✅           | ✅                            |
+| **Microsoft Azure DNS** | ✅           | ⚠️ (propagation can be slow) |
+| **Bunny.net**           | ⏳ Untested  | ⏳                            |
+| **Cloudflare DNS**      | ⏳ Untested  | ⏳                            |
+| **AWS Route53**         | ⏳ Untested  | ⏳                            |
+| **Google Cloud DNS**    | ⏳ Untested  | ⏳                            |
+| **GoDaddy**             | Planned     | Planned                      |
+| **Namecheap**           | Planned     | Planned                      |
+| **BinaryLane (AU)**     | Planned     | Planned                      |
+| **PowerDNS**            | Planned     | Planned                      |
+| **OpenStack Designate** | Planned     | Planned                      |
 
 ---
 
-## 🎨 UI Details
+## 📂 Certificate Storage Layout (New)
 
-- **MainLayout** — Holds header, tabs, and status bar.
-- **HeaderLayout** — Blue banner with app title.
-- **Zones / Records Layouts** — Toolbars and list views for managing data.
-- **SetupPanel / RecordEditPanel / ZoneAddPanel** — Modal dialogs with rounded corners and shadow effects.
-- **Animations** — `TFloatAnimation` elements for slide and fade transitions.
+Matches Certbot conventions for maximum compatibility.
+
+### Linux
+
+```
+/etc/letsencrypt/live/<domain>/cert.pem
+/etc/letsencrypt/live/<domain>/chain.pem
+/etc/letsencrypt/live/<domain>/fullchain.pem
+/etc/letsencrypt/live/<domain>/privkey.pem
+```
+
+### Windows
+
+```
+%ProgramData%\Acme\<domain>\cert.pem
+%ProgramData%\Acme\<domain>\chain.pem
+%ProgramData%\Acme\<domain>\fullchain.pem
+%ProgramData%\Acme\<domain>\privkey.pem
+```
 
 ---
 
-## 📦 File Overview
+## 📦 File Overview (Updated)
 
-| File | Description |
-|------|-------------|
-| `DNS.UI.Main.pas` | Main application form logic, event handling, and provider integration. |
-| `DNS.UI.Main.fmx` | UI layout definition for the FMX form. |
-| `DNS.Base.pas` | Defines abstract interfaces and shared models for DNS providers. |
-| `DNS.Vultr.pas` | Implements the Vultr-specific API provider. |
-| `DNS.DigitalOcean.pas` | Implements the DigitalOcean-specific API provider. |
-| `DNS.Azure.pas` | Implements the Microsoft Azure-specific API provider. |
-| `DNS.Helpers.pas` | Utility functions for JSON parsing and REST handling. |
+| File                                                     | Description                                           |
+| -------------------------------------------------------- | ----------------------------------------------------- |
+| `DNS.UI.Main.pas/.fmx`                                   | Core FMX interface for provider + ACME functions.     |
+| `DNS.Base.pas`                                           | Shared provider abstractions.                         |
+| `DNS.Vultr.pas`, `DNS.DigitalOcean.pas`, `DNS.Azure.pas` | Provider-specific DNS implementations.                |
+| `DNS.Helpers.pas`                                        | JSON & REST utilities.                                |
+| `ACME.Client.pas`                                        | High-level ACME workflow controller.                  |
+| `ACME.Order.pas`                                         | ACME order creation, challenge polling, finalization. |
+| `ACME.Client.Dns01.pas`                                  | Dns-01 validation logic.                              |
+| `ACME.Client.Http01.pas`                                 | Http-01 validation logic. Mostly TODO:                |
+| `ACME.TaurusCrypto.pas`                                  | Certificate/Encryption handling code                  |
+
 
 ---
 
-## 🧪 Possible Future Enhancements
+## 🧪 Planned Future Enhancements
 
-- More Multi-provider support (PowerDNS, GoDaddy, Name.com etc.)
-- Unified configuration for multiple API keys.
-- Record type-specific validation and editing interfaces.
-- DNS import/export (BIND or CSV format).
-- Improved error reporting and logging.
+* UI for scheduled auto-renewal of certificates.
+* Background service (Windows/Linux daemon) for unattended renewal.
+* Additional DNS providers.
+* OCSP stapling helper.
+* Import/export DNS zone editor.
+* Advanced logging.
 
 ---
 
 ## 📄 License
 
-This project is released under the **MIT License**. See the `LICENSE` file for details.
+Released under the **MIT License**.
 
 ---
 
 ## 🧑‍💻 Author
 
-**Geoffrey Smith**  
+**Geoffrey Smith**
 Delphi Developer & Open Source Contributor
 
 ---
 
 ## 💬 Contributions
 
-Contributions are welcome!  
-Please follow Delphi style conventions and ensure new provider modules adhere to the shared interface design in `DNS.Base`.
+Contributions are welcome!
+Please follow Delphi style conventions and ensure new modules conform to the shared interfaces.
 
----
 
-**Delphi DNS Manager** — A cross-provider DNS management tool built with Delphi FMX.
