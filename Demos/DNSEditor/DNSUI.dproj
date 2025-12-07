@@ -9,7 +9,7 @@
         <ProjectGuid>{CCEA2E9D-3741-49F6-816C-4DB92B7B55EB}</ProjectGuid>
         <ProjectName Condition="'$(ProjectName)'==''">DNSUI</ProjectName>
         <ProjectVersion>20.3</ProjectVersion>
-        <TargetedPlatforms>693395</TargetedPlatforms>
+        <TargetedPlatforms>693267</TargetedPlatforms>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
@@ -293,16 +293,16 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="DNS.Base.pas"/>
-        <DCCReference Include="DNS.Helpers.pas"/>
-        <DCCReference Include="DNS.Vultr.pas"/>
-        <DCCReference Include="DNS.DigitalOcean.pas"/>
-        <DCCReference Include="DNS.Azure.pas"/>
         <DCCReference Include="DNS.UI.Main.pas"/>
-        <DCCReference Include="DNS.Cloudflare.pas"/>
-        <DCCReference Include="DNS.Google.pas"/>
-        <DCCReference Include="DNS.Route53.pas"/>
-        <DCCReference Include="DNS.Bunny.pas"/>
+        <DCCReference Include="..\..\Source\DNS.Azure.pas"/>
+        <DCCReference Include="..\..\Source\DNS.Base.pas"/>
+        <DCCReference Include="..\..\Source\DNS.Bunny.pas"/>
+        <DCCReference Include="..\..\Source\DNS.Cloudflare.pas"/>
+        <DCCReference Include="..\..\Source\DNS.DigitalOcean.pas"/>
+        <DCCReference Include="..\..\Source\DNS.Google.pas"/>
+        <DCCReference Include="..\..\Source\DNS.Helpers.pas"/>
+        <DCCReference Include="..\..\Source\DNS.Route53.pas"/>
+        <DCCReference Include="..\..\Source\DNS.Vultr.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
@@ -1306,7 +1306,7 @@
             <Platforms>
                 <Platform value="Android">True</Platform>
                 <Platform value="Android64">True</Platform>
-                <Platform value="Linux64">True</Platform>
+                <Platform value="Linux64">False</Platform>
                 <Platform value="OSX64">True</Platform>
                 <Platform value="OSXARM64">True</Platform>
                 <Platform value="Win32">True</Platform>
