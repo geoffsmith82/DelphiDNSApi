@@ -108,19 +108,20 @@ This project now includes:
 This project now supports DNS + ACME DNS-01 workflows for the following providers:
 
 | Provider                | DNS Support | ACME-DNS Ready               |
-| ----------------------- | ----------- | ---------------------------- |
-| **Vultr DNS**           | ✅           | ✅                            |
-| **DigitalOcean DNS**    | ✅           | ✅                            |
-| **Microsoft Azure DNS** | ✅           | ⚠️ (propagation can be slow) |
-| **Bunny.net**           | ⏳ Untested  | ⏳                            |
-| **Cloudflare DNS**      | ⏳ Untested  | ⏳                            |
-| **AWS Route53**         | ⏳ Untested  | ⏳                            |
-| **Google Cloud DNS**    | ⏳ Untested  | ⏳                            |
-| **GoDaddy**             | Planned     | Planned                      |
-| **Namecheap**           | Planned     | Planned                      |
-| **BinaryLane (AU)**     | Planned     | Planned                      |
-| **PowerDNS**            | Planned     | Planned                      |
-| **OpenStack Designate** | Planned     | Planned                      |
+| --------------------------------- | ----------- | ---------------------------- |
+| **Vultr DNS**                     | ✅           | ✅                           |
+| **DigitalOcean DNS**              | ✅           | ✅                           |
+| **Microsoft Azure DNS**           | ✅           | ⚠️ (propagation can be slow) |
+| **Bunny.net**                     | ⏳ Untested  | ⏳                            |
+| **Cloudflare DNS**                | ⏳ Untested  | ⏳                            |
+| **AWS Route53**                   | ⏳ Untested  | ⏳                            |
+| **Google Cloud DNS**              | ⏳ Untested  | ⏳                            |
+| **Ubiquiti Network Application**  | ⏳ Untested  | Not Supported (LAN Only)     |
+| **GoDaddy**                       | Planned     | Planned                      |
+| **Namecheap**                     | Planned     | Planned                      |
+| **BinaryLane (AU)**               | Planned     | Planned                      |
+| **PowerDNS**                      | Planned     | Planned                      |
+| **OpenStack Designate**           | Planned     | Planned                      |
 
 ---
 
@@ -157,7 +158,6 @@ Matches Certbot conventions for maximum compatibility.
 | `DNS.Vultr.pas`, `DNS.DigitalOcean.pas`, `DNS.Azure.pas` | Provider-specific DNS implementations.                |
 | `DNS.Helpers.pas`                                        | JSON & REST utilities.                                |
 | `ACME.Client.pas`                                        | High-level ACME workflow controller.                  |
-| `ACME.Order.pas`                                         | ACME order creation, challenge polling, finalization. |
 | `ACME.Client.Dns01.pas`                                  | Dns-01 validation logic.                              |
 | `ACME.Client.Http01.pas`                                 | Http-01 validation logic. Mostly TODO:                |
 | `ACME.TaurusCrypto.pas`                                  | Certificate/Encryption handling code                  |

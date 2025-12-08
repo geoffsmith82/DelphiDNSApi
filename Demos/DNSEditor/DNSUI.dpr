@@ -12,6 +12,7 @@ uses
   DNS.Google in '..\..\Source\DNS.Google.pas',
   DNS.Helpers in '..\..\Source\DNS.Helpers.pas',
   DNS.Route53 in '..\..\Source\DNS.Route53.pas',
+  DNS.Ubiquiti in '..\..\Source\DNS.Ubiquiti.pas',
   DNS.Vultr in '..\..\Source\DNS.Vultr.pas';
 
 {$R *.res}

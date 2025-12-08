@@ -303,6 +303,7 @@
         <DCCReference Include="..\..\Source\DNS.Helpers.pas"/>
         <DCCReference Include="..\..\Source\DNS.Route53.pas"/>
         <DCCReference Include="..\..\Source\DNS.Vultr.pas"/>
+        <DCCReference Include="..\..\Source\DNS.Ubiquiti.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

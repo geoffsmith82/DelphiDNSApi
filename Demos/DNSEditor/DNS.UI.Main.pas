@@ -41,10 +41,11 @@ uses
   DNS.Google,
   DNS.Route53,
   DNS.Vultr,
+  DNS.Ubiquiti,
   DNS.Helpers;
 
 type
-  TDNSProviderType = (dpAzure, dpBunny, dpCloudflare, dpDigitalOcean, dpGoogle, dpRoute53, dpVultr);
+  TDNSProviderType = (dpAzure, dpBunny, dpCloudflare, dpDigitalOcean, dpGoogle, dpRoute53, dpUbiquiti, dpVultr);
 
   TDNSProvierTypeHelper = record helper for TDNSProviderType
     function ToServiceName: string;
@@ -264,6 +265,8 @@ begin
     Result := dpRoute53
   else if SameText(AName, 'Google DNS') then
     Result := dpGoogle
+  else if SameText(AName, 'Ubiquiti') then
+    Result := dpUbiquiti
   else if SameText(AName, 'Cloudflare') then
     Result := dpCloudflare
   else
@@ -318,6 +321,8 @@ begin
     SetupTitle.Text := 'Google Setup'
   else if FCurrentProviderType = dpRoute53 then
     SetupTitle.Text := 'Amazon Route 53 Setup'
+  else if FCurrentProviderType = dpUbiquiti then
+    SetupTitle.Text := 'Ubiquiti Setup'
   else
     SetupTitle.Text := 'Azure DNS API Setup';
 
@@ -452,6 +457,7 @@ begin
     4: FCurrentProviderType := dpRoute53; // AWS Route 53
     5: FCurrentProviderType := dpGoogle; //  Google DNS
     6: FCurrentProviderType := dpCloudflare;//  Cloudflare
+    7: FCurrentProviderType := dpUbiquiti;//  Cloudflare
   else
     FCurrentProviderType := dpDigitalOcean;
   end;
@@ -1210,6 +1216,7 @@ begin
     dpRoute53:      Result := 'AWS Route 53';
     dpGoogle:       Result := 'Google DNS';
     dpCloudflare:   Result := 'Cloudflare';
+    dpUbiquiti:     Result := 'Ubiquiti';
   else
     Result := 'DigitalOcean';
   end;
