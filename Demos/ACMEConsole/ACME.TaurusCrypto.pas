@@ -285,33 +285,51 @@ begin
   end;
 end;
 
-
 function TAcmeKeyPair.ComputeJwkThumbprint: string;
 var
   Jwk: TJSONObject;
+  CanonObj: TJSONObject;
   Canon: string;
   HashBytes: TBytes;
 begin
   Jwk := BuildJwk;
+  CanonObj := TJSONObject.Create;
   try
-    // Canonical JSON per RFC 7638:
-    // For RSA: {"e":"...","kty":"RSA","n":"..."}
-    // For EC:  {"crv":"P-256","kty":"EC","x":"...","y":"..."}
+    // RFC 7638 requires lexicographically ordered keys
+    // We must manually insert keys **in canonical order**
     case FKeyType of
       akRsa2048:
-        Canon := Format('{"e":"%s","kty":"RSA","n":"%s"}',
-                        [Jwk.GetValue('e').Value, Jwk.GetValue('n').Value]);
+        begin
+          // RSA canonical order:  e, kty, n
+          CanonObj.AddPair('e',  Jwk.GetValue('e').Clone as TJSONValue);
+          CanonObj.AddPair('kty', TJSONString.Create('RSA'));
+          CanonObj.AddPair('n',  Jwk.GetValue('n').Clone as TJSONValue);
+        end;
+
       akEcP256:
-        Canon := Format('{"crv":"P-256","kty":"EC","x":"%s","y":"%s"}',
-                        [Jwk.GetValue('x').Value, Jwk.GetValue('y').Value]);
+        begin
+          // EC canonical order:  crv, kty, x, y
+          CanonObj.AddPair('crv', TJSONString.Create('P-256'));
+          CanonObj.AddPair('kty', TJSONString.Create('EC'));
+          CanonObj.AddPair('x',   Jwk.GetValue('x').Clone as TJSONValue);
+          CanonObj.AddPair('y',   Jwk.GetValue('y').Clone as TJSONValue);
+        end;
     end;
 
+    // Convert to canonical JSON string
+    Canon := CanonObj.ToJSON;
+
+    // Hash JSON and Base64-URL encode
     HashBytes := THashSHA2.GetHashBytes(Canon);
     Result := Base64UrlEncode(HashBytes);
+
   finally
-    Jwk.Free;
+    FreeAndNil(CanonObj);
+    FreeAndNil(Jwk);
   end;
 end;
+
+
 
 class function TAcmeKeyPair.LoadKeyFromPem(const Pem: string): TAcmeKeyPair;
 var
