@@ -6,6 +6,7 @@ interface
 uses
   System.SysUtils,
   System.TypInfo,
+  System.Generics.Collections,
   DNS.Base;
 
 type
@@ -58,6 +59,10 @@ type
     function ToString: string;
     procedure Add(AType: TDNSRecordType);
     procedure Remove(AType: TDNSRecordType);
+  end;
+
+  TDNSZoneHelper = class helper for TObjectList<TDNSZone>
+    function Contains(aZoneName: string):Boolean;
   end;
 
 implementation
@@ -445,6 +450,19 @@ begin
       SetLength(Self, Length(Self) - 1);
       Break;
     end;
+  end;
+end;
+
+
+function TDNSZoneHelper.Contains(aZoneName: string):Boolean;
+var
+  i : Integer;
+begin
+  Result := False;
+  for I := 0 to Self.Count - 1 do
+  begin
+    if Self[i].Domain = aZoneName then
+      Exit(True);
   end;
 end;
 

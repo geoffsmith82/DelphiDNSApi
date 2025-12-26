@@ -158,7 +158,7 @@ begin
         Result.Tag := LTag;
     end;
   except
-    Result.Free;
+    FreeAndNil(Result);
     raise;
   end;
 end;
@@ -194,7 +194,7 @@ begin
       Result.AddPair('tag', ARecord.Tag);
     end;
   except
-    Result.Free;
+    FreeAndNil(Result);
     raise;
   end;
 end;
@@ -222,7 +222,7 @@ begin
     if AJson.TryGetValue<string>('dns_server', LNS) then
       Result.NameServers.Add(LNS);
   except
-    Result.Free;
+    FreeAndNil(Result);
     raise;
   end;
 end;
@@ -283,11 +283,11 @@ begin
       if (LDomains.Count = 0) then
         Break;
       finally
-        LResponse.Free;
+        FreeAndNil(LResponse);
       end;
     end;
   except
-    Result.Free;
+    FreeAndNil(Result);
     raise;
   end;
 end;
@@ -309,7 +309,7 @@ begin
         Result := ParseZone(TJSONObject(LResponse));
     end;
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -336,10 +336,10 @@ begin
           Result := ParseZone(TJSONObject(LResponse));
       end;
     finally
-      LResponse.Free;
+      FreeAndNil(LResponse);
     end;
   finally
-    LPayload.Free;
+    FreeAndNil(LPayload);
   end;
 end;
 
@@ -351,7 +351,7 @@ begin
   try
     Result := True; // Vultr returns 204 No Content on success
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -405,7 +405,7 @@ begin
                 if (ARecordType = drtA) or (LDNSRecord.RecordType = ARecordType) then
                   Result.Add(LDNSRecord)
                 else
-                  LDNSRecord.Free;
+                  FreeAndNil(LDNSRecord);
 
                 Inc(LFetched);
               end;
@@ -420,11 +420,11 @@ begin
       if (not Assigned(LRecords)) or (LRecords.Count = 0) then
         Break;
       finally
-        LResponse.Free;
+        FreeAndNil(LResponse);
       end;
     end;
   except
-    Result.Free;
+    FreeAndNil(Result);
     raise;
   end;
 end;
@@ -449,12 +449,11 @@ begin
         Result := ParseRecord(TJSONObject(LResponse));
     end;
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
-function TVultrDNSProvider.CreateRecord(const ADomain: string;
-  ARecord: TDNSRecord): TDNSRecord;
+function TVultrDNSProvider.CreateRecord(const ADomain: string; ARecord: TDNSRecord): TDNSRecord;
 var
   LPayload: TJSONObject;
   LResponse: TJSONValue;
@@ -480,10 +479,10 @@ begin
           Result := ParseRecord(TJSONObject(LResponse));
       end;
     finally
-      LResponse.Free;
+      FreeAndNil(LResponse);
     end;
   finally
-    LPayload.Free;
+    FreeAndNil(LPayload);
   end;
 end;
 
@@ -510,10 +509,10 @@ begin
     try
       Result := True; // Vultr returns 204 No Content on success
     finally
-      LResponse.Free;
+      FreeAndNil(LResponse);
     end;
   finally
-    LPayload.Free;
+    FreeAndNil(LPayload);
   end;
 end;
 
@@ -527,7 +526,7 @@ begin
   try
     Result := True; // Vultr returns 204 No Content on success
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -541,7 +540,7 @@ begin
     Result := TJSONObject(LResponse)
   else
   begin
-    LResponse.Free;
+    FreeAndNil(LResponse);
     raise EDNSException.Create('Failed to get SOA record');
   end;
 end;
@@ -561,10 +560,10 @@ begin
     try
       Result := True;
     finally
-      LResponse.Free;
+      FreeAndNil(LResponse);
     end;
   finally
-    LPayload.Free;
+    FreeAndNil(LPayload);
   end;
 end;
 
@@ -584,10 +583,10 @@ begin
       // Check if the response contains a dnssec array
       if TJSONObject(LResponse).TryGetValue<TJSONArray>('dnssec', Result) then
         Result := TJSONArray(Result.Clone as TJSONArray);
-      LResponse.Free;
+      FreeAndNil(LResponse);
     end
     else
-      LResponse.Free;
+      FreeAndNil(LResponse);
   end;
 end;
 
@@ -599,7 +598,7 @@ begin
   try
     Result := True;
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -611,7 +610,7 @@ begin
   try
     Result := True;
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
