@@ -108,20 +108,20 @@ This project now includes:
 This project now supports DNS + ACME DNS-01 workflows for the following providers:
 
 | Provider                | DNS Support | ACME-DNS Ready               |
-| --------------------------------- | ----------- | ---------------------------- |
+| --------------------------------- | ----------- | ----------------------------  |
 | **Vultr DNS**                     | ✅           | ✅                           |
 | **DigitalOcean DNS**              | ✅           | ✅                           |
 | **Microsoft Azure DNS**           | ✅           | ⚠️ (propagation can be slow) |
-| **Bunny.net**                     | ⏳ Untested  | ⏳                            |
+| **Bunny.net**                     | ✅           | ✅                           |
 | **Cloudflare DNS**                | ⏳ Untested  | ⏳                            |
 | **AWS Route53**                   | ⏳ Untested  | ⏳                            |
 | **Google Cloud DNS**              | ⏳ Untested  | ⏳                            |
 | **Ubiquiti Network Application**  | ⏳ Untested  | Not Supported (LAN Only)     |
-| **GoDaddy**                       | Planned     | Planned                      |
-| **Namecheap**                     | Planned     | Planned                      |
-| **BinaryLane (AU)**               | Planned     | Planned                      |
-| **PowerDNS**                      | Planned     | Planned                      |
-| **OpenStack Designate**           | Planned     | Planned                      |
+| **GoDaddy**                       | Planned     | Planned                       |
+| **Namecheap**                     | Planned     | Planned                       |
+| **BinaryLane (AU)**               | Planned     | Planned                       |
+| **PowerDNS**                      | Planned     | Planned                       |
+| **OpenStack Designate**           | Planned     | Planned                       |
 
 ---
 
