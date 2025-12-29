@@ -273,13 +273,13 @@ begin
         else
           Break;
       finally
-        LResponse.Free;
+        FreeAndNil(LResponse);
       end;
 
       Inc(LPage);
     end;
   except
-    Result.Free;
+    FreeAndNil(Result);
     raise;
   end;
 end;
@@ -308,7 +308,7 @@ begin
     if not Assigned(Result) then
       raise EDNSZoneNotFound.CreateFmt('Zone "%s" not found in Cloudflare account', [ADomain]);
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -326,7 +326,7 @@ begin
 
     LResponse := ExecuteRequest(rmPOST, '/zones', LPayload);
   finally
-    LPayload.Free;
+    FreeAndNil(LPayload);
   end;
 
   try
@@ -338,7 +338,7 @@ begin
     end;
     raise EDNSAPIException.Create('Unexpected response when creating Cloudflare zone');
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -363,7 +363,7 @@ begin
         Result := LSuccess;
     end;
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -415,7 +415,7 @@ begin
                 if (ARecordType = drtA) or (LRecord.RecordType = ARecordType) then
                   Result.Add(LRecord)
                 else
-                  LRecord.Free;
+                  FreeAndNil(LRecord);
               end;
 
             if LRecords.Count = 0 then
@@ -427,13 +427,13 @@ begin
         else
           Break;
       finally
-        LResponse.Free;
+        FreeAndNil(LResponse);
       end;
 
       Inc(LPage);
     end;
   except
-    Result.Free;
+    FreeAndNil(Result);
     raise;
   end;
 end;
@@ -460,7 +460,7 @@ begin
 
     raise EDNSRecordNotFound.CreateFmt('Record "%s" not found in zone "%s"', [ARecordId, ADomain]);
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -484,7 +484,7 @@ begin
       LPayload
     );
   finally
-    LPayload.Free;
+    FreeAndNil(LPayload);
   end;
 
   try
@@ -498,7 +498,7 @@ begin
 
     raise EDNSAPIException.Create('Unexpected response when creating Cloudflare DNS record');
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -521,12 +521,12 @@ begin
   LPayload := RecordToJSON(ARecord);
   try
     LResponse := ExecuteRequest(
-      rmPUT,
+      rmPATCH,
       Format('/zones/%s/dns_records/%s', [LZoneId, ARecord.Id]),
       LPayload
     );
   finally
-    LPayload.Free;
+    FreeAndNil(LPayload);
   end;
 
   try
@@ -538,7 +538,7 @@ begin
         Result := LSuccess;
     end;
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -567,7 +567,7 @@ begin
         Result := LSuccess;
     end;
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 

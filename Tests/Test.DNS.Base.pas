@@ -196,13 +196,15 @@ begin
   try
     LDNSRecord.Name := 'alias';
     LDNSRecord.RecordType := drtCNAME;
-    LDNSRecord.Value := FZoneName;
+    LDNSRecord.Value := 'www.tysontechnology.com.au.';
     LDNSRecord.TTL := 300;
     LCreatedDNSRecord := FClient.CreateRecord(FZoneName, LDNSRecord);
+    Assert.IsNotNull(LCreatedDNSRecord);
     Assert.IsNotEmpty(LCreatedDNSRecord.Id);
 
-    LCreatedDNSRecord.Value := FZoneName;
+    LCreatedDNSRecord.Name := 'alias';
     LCreatedDNSRecord.TTL := 600;
+    LCreatedDNSRecord.Value := 'www.tysontechnology.com.au.';
 
     FClient.UpdateRecord(FZoneName, LCreatedDNSRecord);
 
@@ -222,13 +224,15 @@ begin
   try
     LDNSRecord.Name := '@';
     LDNSRecord.RecordType := drtMX;
-    LDNSRecord.Value := 'mail.example.com';
+    LDNSRecord.Value := 'mail.example.com.';
     LDNSRecord.Priority := 10;
     LDNSRecord.TTL := 300;
     LCreatedDNSRecord := FClient.CreateRecord(FZoneName, LDNSRecord);
+    Assert.IsNotNull(LCreatedDNSRecord);
     Assert.IsNotEmpty(LCreatedDNSRecord.Id);
 
     LCreatedDNSRecord.Value := FZoneName;
+    LCreatedDNSRecord.Value := 'mail.example.com.';
     LCreatedDNSRecord.TTL := 600;
 
     FClient.UpdateRecord(FZoneName, LCreatedDNSRecord);
@@ -256,7 +260,7 @@ begin
     LDNSRecord.TTL := 300;
 
     LCreatedDNSRecord := FClient.CreateRecord(FZoneName, LDNSRecord);
-    Assert.IsNotEmpty(LCreatedDNSRecord.Id);
+    Assert.IsNotNull(LCreatedDNSRecord);
 
     Assert.IsNotEmpty(LCreatedDNSRecord.Id);
 

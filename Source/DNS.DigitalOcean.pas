@@ -452,6 +452,7 @@ var
   LResponse: TJSONValue;
   LObj: TJSONObject;
 begin
+  Result := nil;
   LBody := RecordToJSON(ARecord);
   try
     LResponse := ExecuteRequest(rmPOST,
@@ -483,7 +484,7 @@ begin
   LBody := RecordToJSON(ARecord);
   try
     LResource := Format('/domains/%s/records/%s', [ADomain, ARecord.Id]);
-    LResponse := ExecuteRequest(rmPUT, LResource, LBody);
+    LResponse := ExecuteRequest(rmPATCH, LResource, LBody);
     try
       // If ExecuteRequest did not raise, we consider the update successful.
       Result := True;

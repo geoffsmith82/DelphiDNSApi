@@ -230,7 +230,7 @@ begin
       Result.AddPair('tag', FTag);
     end;
   except
-    Result.Free;
+    FreeAndNil(Result);
     raise;
   end;
 end;
@@ -275,7 +275,7 @@ end;
 
 destructor TDNSZone.Destroy;
 begin
-  FNameServers.Free;
+  FreeAndNil(FNameServers);
   inherited;
 end;
 
@@ -305,9 +305,9 @@ end;
 
 destructor TBaseDNSProvider.Destroy;
 begin
-  FRestRequest.Free;
-  FRestResponse.Free;
-  FRestClient.Free;
+  FreeAndNil(FRestRequest);
+  FreeAndNil(FRestResponse);
+  FreeAndNil(FRestClient);
   inherited;
 end;
 
@@ -519,7 +519,9 @@ class function TDNSValidator.IsValidDomain(const ADomain: string): Boolean;
 var
   LRegex: TRegEx;
 begin
-  LRegex := TRegEx.Create('^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$');
+  LRegex := TRegEx.Create(
+    '^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\.?$'
+  );
   Result := LRegex.IsMatch(ADomain);
 end;
 
