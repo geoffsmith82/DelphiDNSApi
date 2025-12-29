@@ -18,8 +18,6 @@ type
     function RecordToJSON(ARecord: TDNSRecord): TJSONObject; override;
     function ParseZone(AJson: TJSONObject): TDNSZone; override;
 
-    function GetBunnyRecordType(AType: TDNSRecordType): string;
-    function ParseBunnyRecordType(const AType: string): TDNSRecordType;
   public
     constructor Create(const AApiKey: string; const AApiSecret: string = ''); override;
 
@@ -49,37 +47,6 @@ procedure TBunnyDNSProvider.SetAuthHeaders;
 begin
   FRestRequest.Params.Clear;
   FRestRequest.AddParameter('AccessKey', FApiKey, pkHTTPHEADER, [poDoNotEncode]);
-end;
-
-function TBunnyDNSProvider.GetBunnyRecordType(AType: TDNSRecordType): string;
-begin
-  case AType of
-    drtA:     Result := 'A';
-    drtAAAA:  Result := 'AAAA';
-    drtCNAME: Result := 'CNAME';
-    drtMX:    Result := 'MX';
-    drtTXT:   Result := 'TXT';
-    drtNS:    Result := 'NS';
-    drtSRV:   Result := 'SRV';
-    drtCAA:   Result := 'CAA';
-    drtPTR:   Result := 'PTR';
-  else
-    Result := 'A';
-  end;
-end;
-
-function TBunnyDNSProvider.ParseBunnyRecordType(const AType: string): TDNSRecordType;
-begin
-  if SameText(AType, 'A') then Result := drtA
-  else if SameText(AType, 'AAAA') then Result := drtAAAA
-  else if SameText(AType, 'CNAME') then Result := drtCNAME
-  else if SameText(AType, 'MX') then Result := drtMX
-  else if SameText(AType, 'TXT') then Result := drtTXT
-  else if SameText(AType, 'NS') then Result := drtNS
-  else if SameText(AType, 'SRV') then Result := drtSRV
-  else if SameText(AType, 'CAA') then Result := drtCAA
-  else if SameText(AType, 'PTR') then Result := drtPTR
-  else Result := drtA;
 end;
 
 function TBunnyDNSProvider.ParseZone(AJson: TJSONObject): TDNSZone;
@@ -201,7 +168,7 @@ begin
     if AJson.TryGetValue<string>('Name', LName) then
       Result.Name := LName;
     if AJson.TryGetValue<string>('Type', LType) then
-      Result.RecordType := ParseBunnyRecordType(LType);
+      Result.RecordType := ParseRecordType(LType);
     if AJson.TryGetValue<string>('Value', LValue) then
       Result.Value := LValue;
     if AJson.TryGetValue<Integer>('Ttl', LTTL) then
@@ -218,11 +185,28 @@ begin
   end;
 end;
 
+function TBunnyDNSProvider.RecordTypeToEnumValue(value: TDNSRecordType): Integer;
+begin
+  case value of
+    drtA: Result := 0;
+    drtAAAA: Result := 1;
+    drtCNAME: Result := 2;
+    drtMX: Result := 4;
+    drtTXT: Result := 3;
+    drtNS: Result := 12;
+    drtSOA: Result := -1;
+    drtSRV: Result := 8;
+    drtPTR: Result := 10;
+    drtCAA: Result := 9;
+  end;
+end;
+
+
 function TBunnyDNSProvider.RecordToJSON(ARecord: TDNSRecord): TJSONObject;
 begin
   Result := TJSONObject.Create;
   try
-    Result.AddPair('Type', Ord(ARecord.RecordType)); // Bunny uses numeric type codes
+    Result.AddPair('Type', RecordTypeToEnumValue(ARecord.RecordType)); // Bunny uses numeric type codes
     Result.AddPair('Value', ARecord.Value);
     Result.AddPair('Name', ARecord.Name);
     Result.AddPair('Ttl', TJSONNumber.Create(ARecord.TTL));
@@ -303,6 +287,7 @@ var
   LResponse: TJSONObject;
   LId: Int64;
 begin
+  Result := nil;
   if not ValidateRecord(ARecord) then
     raise EDNSException.Create('Invalid record');
 
@@ -310,7 +295,7 @@ begin
   try
     LPayload := RecordToJSON(ARecord);
     try
-      LResponse := ExecuteRequest(rmPOST, '/dnszone/' + LZone.Id + '/records', LPayload) as TJSONObject;
+      LResponse := ExecuteRequest(rmPUT, '/dnszone/' + LZone.Id + '/records', LPayload) as TJSONObject;
       try
         if LResponse.TryGetValue<Int64>('Id', LId) then
           Result := GetRecord(ADomain, IntToStr(LId))
