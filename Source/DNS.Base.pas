@@ -71,7 +71,7 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    function Clone: TDNSZone;
+    function Clone: TDNSZone; virtual;
 
     property Id: string read FId write FId;
     property Domain: string read FDomain write FDomain;
@@ -336,7 +336,7 @@ begin
     if Assigned(APayload) then
     begin
       FRestRequest.ClearBody;
-      FRestRequest.AddBody(APayload.ToJSON, TRESTContentType.ctAPPLICATION_JSON);
+      FRestRequest.AddBody(APayload, TRESTObjectOwnership.ooApp);
     end;
 
     // Execute the request
@@ -352,11 +352,12 @@ begin
     if (FRestResponse.Content <> '') and
        (FRestResponse.StatusCode <> 204) then  // 204 No Content
     begin
-      Result := TJSONObject.ParseJSONValue(FRestResponse.Content);
+      Result := TJSONValue.ParseJSONValue(FRestResponse.Content);
     end;
   except
     on E: Exception do
     begin
+      FreeAndNil(Result);
       FLastError := E.Message;
       raise;
     end;

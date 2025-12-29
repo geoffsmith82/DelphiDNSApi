@@ -7,11 +7,14 @@ uses
   System.Generics.Collections,
   System.SysUtils,
   System.Classes,
+  REST.Client,
   REST.Types,
   DNS.Base;
 
 type
   TBunnyDNSProvider = class(TBaseDNSProvider)
+  private
+    function RecordTypeToEnumValue(value: TDNSRecordType): Integer;
   protected
     procedure SetAuthHeaders; override;
     function ParseRecord(AJson: TJSONObject): TDNSRecord; override;
@@ -35,6 +38,43 @@ type
 
 implementation
 
+type
+  TBunnyDNSZone = class(TDNSZone)
+  public
+    Records: TObjectList<TDNSRecord>;
+    constructor Create;
+    destructor Destroy; override;
+    function Clone: TDNSZone; override;
+  end;
+
+function TBunnyDNSZone.Clone: TDNSZone;
+var
+  i: Integer;
+begin
+  Result := TBunnyDNSZone.Create;
+  Result.Id := Self.Id;
+  Result.Domain := Self.Domain;
+  Result.CreatedAt := Self.CreatedAt;
+  Result.UpdatedAt := Self.UpdatedAt;
+  Result.NameServers.Assign(Self.NameServers);
+  for i := 0 to Records.Count - 1 do
+  begin
+    (Result as TBunnyDNSZone).Records.Add((Self as TBunnyDNSZone).Records[i].Clone);
+  end;
+end;
+
+constructor TBunnyDNSZone.Create;
+begin
+  inherited Create;
+  Records := TObjectList<TDNSRecord>.Create(True);
+end;
+
+destructor TBunnyDNSZone.Destroy;
+begin
+  FreeAndNil(Records);
+  inherited;
+end;
+
 { TBunnyDNSProvider }
 
 constructor TBunnyDNSProvider.Create(const AApiKey: string; const AApiSecret: string);
@@ -44,27 +84,50 @@ begin
 end;
 
 procedure TBunnyDNSProvider.SetAuthHeaders;
+var
+  P: TRESTRequestParameter;
 begin
-  FRestRequest.Params.Clear;
-  FRestRequest.AddParameter('AccessKey', FApiKey, pkHTTPHEADER, [poDoNotEncode]);
+  P := FRestRequest.Params.ParameterByName('AccessKey');
+  if P = nil then
+    FRestRequest.AddParameter('AccessKey', FApiKey, pkHTTPHEADER, [poDoNotEncode])
+  else
+  begin
+    P.Kind := pkHTTPHEADER;
+    P.Options := [poDoNotEncode];
+    P.Value := FApiKey;
+  end;
 end;
 
 function TBunnyDNSProvider.ParseZone(AJson: TJSONObject): TDNSZone;
 var
+  LZone: TBunnyDNSZone;
   LDomain: string;
   LId: Int64;
+  LRecords: TJSONArray;
+  LItem: TJSONValue;
 begin
-  Result := TDNSZone.Create;
+  LZone := TBunnyDNSZone.Create;
   try
     if AJson.TryGetValue<Int64>('Id', LId) then
-      Result.Id := IntToStr(LId);
+      LZone.Id := LId.ToString;
 
     if AJson.TryGetValue<string>('Domain', LDomain) then
-      Result.Domain := LDomain;
+      LZone.Domain := LDomain;
 
-    // Bunny doesn't return creation/update dates in list, but single GET does
+    if AJson.TryGetValue<TJSONArray>('Records', LRecords) then
+    begin
+      for LItem in LRecords do
+      begin
+        if LItem is TJSONObject then
+        begin
+          LZone.Records.Add(ParseRecord(TJSONObject(LItem)));
+        end;
+      end;
+    end;
+
+    Result := LZone;
   except
-    FreeandNil(Result);
+    FreeAndNil(LZone);
     raise;
   end;
 end;
@@ -78,19 +141,22 @@ begin
   Result := TObjectList<TDNSZone>.Create(True);
   LResponse := ExecuteRequest(rmGET, '/dnszone');
   try
-    if Assigned(LResponse) and (LResponse is TJSONArray) then
+    if Assigned(LResponse) then
     begin
-      LArray := TJSONArray(LResponse);
-      for LItem in LArray do
+      if LResponse.TryGetValue<TJSONArray>('Items', LArray) then
       begin
-        if LItem is TJSONObject then
-          Result.Add(ParseZone(TJSONObject(LItem)));
+        for LItem in LArray do
+        begin
+          if LItem is TJSONObject then
+            Result.Add(ParseZone(TJSONObject(LItem)));
+        end;
       end;
     end;
   finally
     FreeandNil(LResponse);
   end;
 end;
+
 
 function TBunnyDNSProvider.GetZone(const ADomain: string): TDNSZone;
 var
@@ -104,7 +170,7 @@ begin
     begin
       if SameText(LZone.Domain, ADomain) then
       begin
-        Result := LZone;
+        Result := LZones.Extract(LZone);
         Exit;
       end;
     end;
@@ -140,13 +206,15 @@ end;
 function TBunnyDNSProvider.DeleteZone(const ADomain: string): Boolean;
 var
   LZone: TDNSZone;
+  LResponse: TJSONObject;
 begin
   LZone := GetZone(ADomain);
   try
-    ExecuteRequest(rmDELETE, '/dnszone/' + LZone.Id);
+    LResponse := ExecuteRequest(rmDELETE, '/dnszone/' + LZone.Id) as TJSONObject;
     Result := True;
   finally
     FreeAndNil(LZone);
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -206,7 +274,7 @@ function TBunnyDNSProvider.RecordToJSON(ARecord: TDNSRecord): TJSONObject;
 begin
   Result := TJSONObject.Create;
   try
-    Result.AddPair('Type', RecordTypeToEnumValue(ARecord.RecordType)); // Bunny uses numeric type codes
+    Result.AddPair('Type', TJSONNumber.Create(RecordTypeToEnumValue(ARecord.RecordType))); // Bunny uses numeric type codes
     Result.AddPair('Value', ARecord.Value);
     Result.AddPair('Name', ARecord.Name);
     Result.AddPair('Ttl', TJSONNumber.Create(ARecord.TTL));
@@ -228,56 +296,45 @@ end;
 function TBunnyDNSProvider.ListRecords(const ADomain: string; ARecordType: TDNSRecordType): TObjectList<TDNSRecord>;
 var
   LZone: TDNSZone;
-  LResponse: TJSONValue;
-  LArray: TJSONArray;
-  LItem: TJSONValue;
+  LBunnyZone: TBunnyDNSZone;
   LRecord: TDNSRecord;
 begin
   Result := TObjectList<TDNSRecord>.Create(True);
   LZone := GetZone(ADomain);
   try
-    LResponse := ExecuteRequest(rmGET, '/dnszone/' + LZone.Id + '/records');
-    try
-      if Assigned(LResponse) and (LResponse is TJSONArray) then
-      begin
-        LArray := TJSONArray(LResponse);
-        for LItem in LArray do
-        begin
-          if LItem is TJSONObject then
-          begin
-            LRecord := ParseRecord(TJSONObject(LItem));
-            if (ARecordType = drtA) or (LRecord.RecordType = ARecordType) then
-              Result.Add(LRecord)
-            else
-              FreeandNil(LRecord);
-          end;
-        end;
-      end;
-    finally
-      FreeandNil(LResponse);
-    end;
+    if not (LZone is TBunnyDNSZone) then
+      Exit;
+
+    LBunnyZone := TBunnyDNSZone(LZone);
+
+    for LRecord in LBunnyZone.Records do
+      if (ARecordType = drtA) or (LRecord.RecordType = ARecordType) then
+        Result.Add(LRecord.Clone);
   finally
-    FreeandNil(LZone);
+    FreeAndNil(LZone);
   end;
 end;
 
 function TBunnyDNSProvider.GetRecord(const ADomain, ARecordId: string): TDNSRecord;
 var
   LZone: TDNSZone;
-  LResponse: TJSONObject;
+  LBunnyZone: TBunnyDNSZone;
+  LRecord: TDNSRecord;
 begin
-  Result := nil;
   LZone := GetZone(ADomain);
   try
-    LResponse := ExecuteRequest(rmGET, '/dnszone/' + LZone.Id + '/records/' + ARecordId) as TJSONObject;
-    try
-      Result := ParseRecord(LResponse);
-    finally
-      FreeandNil(LResponse);
+    if LZone is TBunnyDNSZone then
+    begin
+      LBunnyZone := TBunnyDNSZone(LZone);
+      for LRecord in LBunnyZone.Records do
+        if LRecord.Id = ARecordId then
+          Exit(LRecord.Clone);
     end;
   finally
-    FreeandNil(LZone);
+    FreeAndNil(LZone);
   end;
+
+  raise EDNSRecordNotFound.Create('Record not found: ' + ARecordId);
 end;
 
 function TBunnyDNSProvider.CreateRecord(const ADomain: string; ARecord: TDNSRecord): TDNSRecord;
@@ -316,6 +373,7 @@ function TBunnyDNSProvider.UpdateRecord(const ADomain: string; ARecord: TDNSReco
 var
   LZone: TDNSZone;
   LPayload: TJSONObject;
+  LResponse: TJSONObject;
 begin
   if ARecord.Id = '' then
     raise EDNSException.Create('Record ID required for update');
@@ -324,10 +382,11 @@ begin
   try
     LPayload := RecordToJSON(ARecord);
     try
-      ExecuteRequest(rmPUT, '/dnszone/' + LZone.Id + '/records/' + ARecord.Id, LPayload);
+      LResponse := ExecuteRequest(rmPOST, '/dnszone/' + LZone.Id + '/records/' + ARecord.Id, LPayload) as TJSONObject;
       Result := True;
     finally
       FreeandNil(LPayload);
+      FreeAndNil(LResponse);
     end;
   finally
     FreeandNil(LZone);
@@ -337,13 +396,15 @@ end;
 function TBunnyDNSProvider.DeleteRecord(const ADomain, ARecordId: string): Boolean;
 var
   LZone: TDNSZone;
+  LResponse: TJSONObject;
 begin
   LZone := GetZone(ADomain);
   try
-    ExecuteRequest(rmDELETE, '/dnszone/' + LZone.Id + '/records/' + ARecordId);
+    LResponse := ExecuteRequest(rmDELETE, '/dnszone/' + LZone.Id + '/records/' + ARecordId) as TJSONObject;
     Result := True;
   finally
     FreeandNil(LZone);
+    FreeAndNil(LResponse);
   end;
 end;
 

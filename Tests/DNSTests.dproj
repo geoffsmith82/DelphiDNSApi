@@ -192,6 +192,7 @@
         <DCCReference Include="..\Libs\ApiKeyStore\ApiKeyStore.pas"/>
         <DCCReference Include="..\Libs\ApiKeyStore\ApiKeyStore.Windows.pas"/>
         <DCCReference Include="Test.DNS.DigitalOcean.pas"/>
+        <DCCReference Include="Test.DNS.Bunny.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

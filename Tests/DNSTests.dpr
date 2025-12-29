@@ -29,6 +29,7 @@ uses
   Test.DNS.Vultr in 'Test.DNS.Vultr.pas',
   ApiKeyStore in '..\Libs\ApiKeyStore\ApiKeyStore.pas',
   ApiKeyStore.Windows in '..\Libs\ApiKeyStore\ApiKeyStore.Windows.pas',
+  Test.DNS.Bunny in 'Test.DNS.Bunny.pas',
   Test.DNS.DigitalOcean in 'Test.DNS.DigitalOcean.pas';
 
 { keep comment here to protect the following conditional from being removed by the IDE when adding a unit }
