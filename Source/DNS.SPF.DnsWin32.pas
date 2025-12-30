@@ -273,7 +273,7 @@ begin
     while R <> nil do
     begin
       if R.wType = DNS_TYPE_MX then
-//        List.Add(WideCharToString(R.Data.MX.pNameExchange));
+        List.Add(WideCharToString(R.MX.pNameExchange));
       R := R.pNext;
     end;
 
