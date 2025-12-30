@@ -378,7 +378,6 @@ var
   Ast: TSpfRecordAst;
   Mech: TSpfMechanism;
   IpBytes, NetBytes: TArray<Byte>;
-  IsV6: Boolean;
   Pfx: Integer;
   Expanded: string;
   AHosts, AAAAHosts, MXHosts: TArray<string>;

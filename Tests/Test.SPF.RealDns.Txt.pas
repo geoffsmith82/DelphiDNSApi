@@ -13,7 +13,6 @@ type
   TRealDnsTxtTests = class(TRealDnsTestBase)
   public
     [Test]
-//    [Ignore('Integration test – requires internet')]
     procedure GoogleTxt_ContainsSpf;
   end;
 
