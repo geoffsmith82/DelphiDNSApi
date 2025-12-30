@@ -204,5 +204,8 @@ begin
   end;
 end;
 
+initialization
+  TDUnitX.RegisterTestFixture(TDmarcPolicyTests);
+
 
 end.

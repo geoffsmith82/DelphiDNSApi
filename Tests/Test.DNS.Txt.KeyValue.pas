@@ -62,5 +62,7 @@ begin
   Assert.IsTrue(Length(Issues) > 0);
 end;
 
+initialization
+  TDUnitX.RegisterTestFixture(TTxtKeyValueParserTests);
 
 end.

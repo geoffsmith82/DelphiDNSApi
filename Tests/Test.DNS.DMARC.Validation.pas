@@ -53,5 +53,8 @@ begin
   Assert.IsTrue(Length(R.Messages) > 0);
 end;
 
+initialization
+  TDUnitX.RegisterTestFixture(TDmarcValidationTests);
+
 
 end.

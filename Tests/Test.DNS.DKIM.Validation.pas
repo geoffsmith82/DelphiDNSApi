@@ -41,11 +41,7 @@ procedure TDkimValidationTests.NoRecord_Fails;
 var
   R: TDkimValidationResult;
 begin
-  R := ValidateDkimSelector(
-    'example.com',
-    'selector1',
-    Resolver
-  );
+  R := ValidateDkimSelector('example.com', 'selector1', Resolver);
 
   Assert.IsFalse(R.Exists);
   Assert.IsFalse(R.IsValid);
@@ -55,10 +51,7 @@ procedure TDkimValidationTests.MultipleRecords_PermError;
 var
   R: TDkimValidationResult;
 begin
-  Resolver.AddTxt(
-    'selector1._domainkey.example.com',
-    ['v=DKIM1; p=AAA', 'v=DKIM1; p=BBB']
-  );
+  Resolver.AddTxt('selector1._domainkey.example.com', ['v=DKIM1; p=AAA', 'v=DKIM1; p=BBB']);
 
   R := ValidateDkimSelector('example.com', 'selector1', Resolver);
 
@@ -71,10 +64,7 @@ procedure TDkimValidationTests.InvalidRecord_Fails;
 var
   R: TDkimValidationResult;
 begin
-  Resolver.AddTxt(
-    'selector1._domainkey.example.com',
-    ['v=DKIM1; k=rsa'] // missing p=
-  );
+  Resolver.AddTxt('selector1._domainkey.example.com', ['v=DKIM1; k=rsa'] (* missing p= *));
 
   R := ValidateDkimSelector('example.com', 'selector1', Resolver);
 
@@ -86,10 +76,7 @@ procedure TDkimValidationTests.ValidRecord_Passes;
 var
   R: TDkimValidationResult;
 begin
-  Resolver.AddTxt(
-    'selector1._domainkey.example.com',
-    ['v=DKIM1; k=rsa; p=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789']
-  );
+  Resolver.AddTxt('selector1._domainkey.example.com', ['v=DKIM1; k=rsa; p=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789']);
 
   R := ValidateDkimSelector('example.com', 'selector1', Resolver);
 
@@ -101,16 +88,16 @@ procedure TDkimValidationTests.ShortKey_Warns;
 var
   R: TDkimValidationResult;
 begin
-  Resolver.AddTxt(
-    'selector1._domainkey.example.com',
-    ['v=DKIM1; p=ABC']
-  );
+  Resolver.AddTxt('selector1._domainkey.example.com', ['v=DKIM1; p=ABC']);
 
   R := ValidateDkimSelector('example.com', 'selector1', Resolver);
 
   Assert.IsTrue(R.IsValid);
   Assert.IsTrue(Length(R.Warnings) > 0);
 end;
+
+initialization
+  TDUnitX.RegisterTestFixture(TDkimValidationTests);
 
 
 end.

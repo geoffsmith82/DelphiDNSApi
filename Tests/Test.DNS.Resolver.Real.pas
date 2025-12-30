@@ -92,5 +92,8 @@ begin
   );
 end;
 
+initialization
+  TDUnitX.RegisterTestFixture(TRealDnsResolverTests);
+
 
 end.
