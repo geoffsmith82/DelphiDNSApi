@@ -171,6 +171,24 @@
         <DCCReference Include="Test.SPF.Flattening.pas"/>
         <DCCReference Include="..\Source\DNS.SPF.DnsCache.pas"/>
         <DCCReference Include="Test.SPF.ExpEvaluation.pas"/>
+        <DCCReference Include="Test.SPF.MultiStringTxt.pas"/>
+        <DCCReference Include="..\Source\DNS.SPF.DnsWin32.pas"/>
+        <DCCReference Include="Test.SPF.RealDns.Base.pas"/>
+        <DCCReference Include="Test.SPF.RealDns.Txt.pas"/>
+        <DCCReference Include="Test.DNS.Resolver.Real.pas"/>
+        <DCCReference Include="..\Source\DNS.Txt.KeyValue.pas"/>
+        <DCCReference Include="Test.DNS.Txt.KeyValue.pas"/>
+        <DCCReference Include="..\Source\DNS.DMARC.Types.pas"/>
+        <DCCReference Include="..\Source\DNS.DMARC.Parser.pas"/>
+        <DCCReference Include="..\Source\DNS.DMARC.Policy.pas"/>
+        <DCCReference Include="Test.DNS.DMARC.Policy.pas"/>
+        <DCCReference Include="..\Source\DNS.DMARC.Validation.pas"/>
+        <DCCReference Include="Test.DNS.DMARC.Validation.pas"/>
+        <DCCReference Include="Test.DNS.DKIM.Validation.pas"/>
+        <DCCReference Include="Test.DKIM.FakeResolver.pas"/>
+        <DCCReference Include="..\Source\DNS.DKIM.Types.pas"/>
+        <DCCReference Include="..\Source\DNS.DKIM.Parser.pas"/>
+        <DCCReference Include="..\Source\DNS.DKIM.Validation.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

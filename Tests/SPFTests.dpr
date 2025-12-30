@@ -33,7 +33,25 @@ uses
   Test.SPF.ExpModifier in 'Test.SPF.ExpModifier.pas',
   Test.SPF.Flattening in 'Test.SPF.Flattening.pas',
   DNS.SPF.DnsCache in '..\Source\DNS.SPF.DnsCache.pas',
-  Test.SPF.ExpEvaluation in 'Test.SPF.ExpEvaluation.pas';
+  Test.SPF.ExpEvaluation in 'Test.SPF.ExpEvaluation.pas',
+  Test.SPF.MultiStringTxt in 'Test.SPF.MultiStringTxt.pas',
+  DNS.SPF.DnsWin32 in '..\Source\DNS.SPF.DnsWin32.pas',
+  Test.SPF.RealDns.Base in 'Test.SPF.RealDns.Base.pas',
+  Test.SPF.RealDns.Txt in 'Test.SPF.RealDns.Txt.pas',
+  Test.DNS.Resolver.Real in 'Test.DNS.Resolver.Real.pas',
+  DNS.Txt.KeyValue in '..\Source\DNS.Txt.KeyValue.pas',
+  Test.DNS.Txt.KeyValue in 'Test.DNS.Txt.KeyValue.pas',
+  DNS.DMARC.Types in '..\Source\DNS.DMARC.Types.pas',
+  DNS.DMARC.Parser in '..\Source\DNS.DMARC.Parser.pas',
+  DNS.DMARC.Policy in '..\Source\DNS.DMARC.Policy.pas',
+  Test.DNS.DMARC.Policy in 'Test.DNS.DMARC.Policy.pas',
+  DNS.DMARC.Validation in '..\Source\DNS.DMARC.Validation.pas',
+  Test.DNS.DMARC.Validation in 'Test.DNS.DMARC.Validation.pas',
+  Test.DNS.DKIM.Validation in 'Test.DNS.DKIM.Validation.pas',
+  Test.DKIM.FakeResolver in 'Test.DKIM.FakeResolver.pas',
+  DNS.DKIM.Types in '..\Source\DNS.DKIM.Types.pas',
+  DNS.DKIM.Parser in '..\Source\DNS.DKIM.Parser.pas',
+  DNS.DKIM.Validation in '..\Source\DNS.DKIM.Validation.pas';
 
 { keep comment here to protect the following conditional from being removed by the IDE when adding a unit }
 {$IFNDEF TESTINSIGHT}
