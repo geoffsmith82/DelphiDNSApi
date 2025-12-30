@@ -478,11 +478,7 @@ begin
 
   LPayload := RecordToJSON(ARecord);
   try
-    LResponse := ExecuteRequest(
-      rmPOST,
-      Format('/zones/%s/dns_records', [LZoneId]),
-      LPayload
-    );
+    LResponse := ExecuteRequest(rmPOST, Format('/zones/%s/dns_records', [LZoneId]), LPayload);
   finally
     FreeAndNil(LPayload);
   end;
@@ -520,11 +516,7 @@ begin
 
   LPayload := RecordToJSON(ARecord);
   try
-    LResponse := ExecuteRequest(
-      rmPATCH,
-      Format('/zones/%s/dns_records/%s', [LZoneId, ARecord.Id]),
-      LPayload
-    );
+    LResponse := ExecuteRequest(rmPATCH, Format('/zones/%s/dns_records/%s', [LZoneId, ARecord.Id]), LPayload);
   finally
     FreeAndNil(LPayload);
   end;
@@ -553,10 +545,7 @@ begin
   if LZoneId = '' then
     raise EDNSZoneNotFound.CreateFmt('Zone "%s" not found', [ADomain]);
 
-  LResponse := ExecuteRequest(
-    rmDELETE,
-    Format('/zones/%s/dns_records/%s', [LZoneId, ARecordId])
-  );
+  LResponse := ExecuteRequest(rmDELETE, Format('/zones/%s/dns_records/%s', [LZoneId, ARecordId]));
 
   try
     Result := False;

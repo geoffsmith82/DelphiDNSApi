@@ -39,7 +39,7 @@ type
     function RecordToJSON(ARecord: TDNSRecord): TJSONObject; override;
     function ParseZone(AJson: TJSONObject): TDNSZone; override;
   public
-    constructor Create(const AURL, AUsername, APassword, A2FAToken: string);
+    constructor Create(const AURL, AUsername, APassword, A2FAToken: string); reintroduce;
 
     function ListZones: TObjectList<TDNSZone>; override;
     function GetZone(const ADomain: string): TDNSZone; override;
@@ -107,7 +107,7 @@ begin
       Result := True;
     end;
   finally
-    Body.Free;
+    FreeAndNil(Body);
   end;
 end;
 
@@ -245,7 +245,7 @@ begin
     // e.g. AJson.TryGetValue<Integer>('weight', Result.Weight);
     //      AJson.TryGetValue<Integer>('port', Result.Port);
   except
-    Result.Free;
+    FreeAndNil(Result);
     raise;
   end;
 end;
@@ -278,7 +278,7 @@ begin
     // Result.AddPair('port', TJSONNumber.Create(ARecord.Port));
     // Result.AddPair('weight', TJSONNumber.Create(ARecord.Weight));
   except
-    Result.Free;
+    FreeAndNil(Result);
     raise;
   end;
 end;
@@ -291,7 +291,7 @@ begin
     Result.Id := UNI_SINGLE_ZONE_ID;
     Result.Domain := UNI_SINGLE_ZONE_NAME;
   except
-    Result.Free;
+    FreeAndNil(Result);
     raise;
   end;
 end;
@@ -336,7 +336,7 @@ begin
           Rec.Free;
       end;
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -359,7 +359,7 @@ begin
     else
       raise EDNSRecordNotFound.CreateFmt('Record ID "%s" not found', [ARecordId]);
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -382,8 +382,8 @@ begin
     else
       raise EDNSAPIException.Create('Unexpected UniFi response for CreateRecord');
   finally
-    Payload.Free;
-    LResponse.Free;
+    FreeAndNil(Payload);
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -406,8 +406,8 @@ begin
 
     Result := True;
   finally
-    Payload.Free;
-    LResponse.Free;
+    FreeAndNil(Payload);
+    FreeAndNil(LResponse);
   end;
 end;
 
@@ -424,7 +424,7 @@ begin
   try
     Result := True;
   finally
-    LResponse.Free;
+    FreeAndNil(LResponse);
   end;
 end;
 
