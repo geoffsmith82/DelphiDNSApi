@@ -98,6 +98,7 @@ var
   EncryptedData: TBytes;
   FileName: string;
   data : string;
+  p : TJSONPair;
 begin
   FileName := TPath.Combine(TPath.GetDocumentsPath, 'ApiKeys.json');
   if TFile.Exists(Filename) then
@@ -115,12 +116,21 @@ begin
     if APIKey.Length > 0 then
     begin
       EncryptedData := ProtectData(TEncoding.UTF8.GetBytes(ApiKey));
-      JsonData.RemovePair(Name);
-      JsonData.AddPair(Name, TNetEncoding.Base64String.EncodeBytesToString(EncryptedData));
+      p := JsonData.RemovePair(Name);
+      try
+        JsonData.AddPair(Name, TNetEncoding.Base64String.EncodeBytesToString(EncryptedData));
+      finally
+        FreeAndNil(p);
+      end;
     end
     else
     begin
-      JsonData.RemovePair(Name);
+      p := JsonData.RemovePair(Name);
+      try
+        JsonData.RemovePair(Name);
+      finally
+        FreeAndNil(p);
+      end;
     end;
     TFile.WriteAllText(FileName, JsonData.ToJSON);
   finally
