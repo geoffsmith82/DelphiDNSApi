@@ -858,9 +858,9 @@ begin
 
     Trace.Steps := TraceList.ToArray;
   finally
-    TraceList.Free;
-    Issues.Free;
-    Stack.Free;
+    FreeAndNil(TraceList);
+    FreeAndNil(Issues);
+    FreeAndNil(Stack);
   end;
 end;
 
@@ -992,12 +992,12 @@ begin
     Result.OpaqueTerms := Opaque.ToArray;
     Result.Enumerable := (Opaque.Count = 0) and (Budget <= 10);
   finally
-    Parts.Free;
-    Stack.Free;
-    Opaque.Free;
-    Ips6.Free;
-    Ips4.Free;
-    Seen.Free;
+    FreeAndNil(Parts);
+    FreeAndNil(Stack);
+    FreeAndNil(Opaque);
+    FreeAndNil(Ips6);
+    FreeAndNil(Ips4);
+    FreeAndNil(Seen);
   end;
 end;
 

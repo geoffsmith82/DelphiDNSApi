@@ -221,9 +221,9 @@ begin
     Result.Mechanisms := Mechs.ToArray;
     Result.Modifiers := Mods.ToArray;
   finally
-    Terms.Free;
-    Mechs.Free;
-    Mods.Free;
+    FreeAndNil(Terms);
+    FreeAndNil(Mechs);
+    FreeAndNil(Mods);
   end;
 end;
 

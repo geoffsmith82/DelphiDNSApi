@@ -16,20 +16,11 @@ type
   public
     constructor Create(const Parsed: TDmarcParsed);
 
-    function EffectivePolicy(
-      const OrganizationalDomain: string;
-      const HeaderFromDomain: string
-    ): TDmarcPolicy;
+    function EffectivePolicy(const OrganizationalDomain: string; const HeaderFromDomain: string): TDmarcPolicy;
 
-    function IsSpfAligned(
-      const MailFromDomain: string;
-      const HeaderFromDomain: string
-    ): Boolean;
+    function IsSpfAligned(const MailFromDomain: string; const HeaderFromDomain: string): Boolean;
 
-    function IsDkimAligned(
-      const DkimDomain: string;
-      const HeaderFromDomain: string
-    ): Boolean;
+    function IsDkimAligned(const DkimDomain: string; const HeaderFromDomain: string): Boolean;
 
     function ShouldApplyPolicy: Boolean;
 
@@ -47,28 +38,19 @@ begin
   FParsed := Parsed;
 end;
 
-function TDmarcPolicyContext.DomainsAlignStrict(
-  const A, B: string
-): Boolean;
+function TDmarcPolicyContext.DomainsAlignStrict(const A, B: string): Boolean;
 begin
   Result := SameText(A, B);
 end;
 
-function TDmarcPolicyContext.DomainsAlignRelaxed(
-  const A, B: string
-): Boolean;
+function TDmarcPolicyContext.DomainsAlignRelaxed(const A, B: string): Boolean;
 begin
   // Relaxed = same organizational domain
   // (you can later replace this with a PSL-based check)
-  Result := SameText(A, B) or
-            A.EndsWith('.' + B) or
-            B.EndsWith('.' + A);
+  Result := SameText(A, B) or A.EndsWith('.' + B) or B.EndsWith('.' + A);
 end;
 
-function TDmarcPolicyContext.IsSpfAligned(
-  const MailFromDomain: string;
-  const HeaderFromDomain: string
-): Boolean;
+function TDmarcPolicyContext.IsSpfAligned(const MailFromDomain: string;  const HeaderFromDomain: string): Boolean;
 begin
   if FParsed.Aspf = daStrict then
     Result := DomainsAlignStrict(MailFromDomain, HeaderFromDomain)
@@ -76,10 +58,7 @@ begin
     Result := DomainsAlignRelaxed(MailFromDomain, HeaderFromDomain);
 end;
 
-function TDmarcPolicyContext.IsDkimAligned(
-  const DkimDomain: string;
-  const HeaderFromDomain: string
-): Boolean;
+function TDmarcPolicyContext.IsDkimAligned(const DkimDomain: string; const HeaderFromDomain: string): Boolean;
 begin
   if FParsed.Adkim = daStrict then
     Result := DomainsAlignStrict(DkimDomain, HeaderFromDomain)
@@ -87,10 +66,7 @@ begin
     Result := DomainsAlignRelaxed(DkimDomain, HeaderFromDomain);
 end;
 
-function TDmarcPolicyContext.EffectivePolicy(
-  const OrganizationalDomain: string;
-  const HeaderFromDomain: string
-): TDmarcPolicy;
+function TDmarcPolicyContext.EffectivePolicy(const OrganizationalDomain: string; const HeaderFromDomain: string): TDmarcPolicy;
 begin
   if SameText(OrganizationalDomain, HeaderFromDomain) then
     Exit(FParsed.Policy);

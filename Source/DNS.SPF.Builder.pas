@@ -49,7 +49,7 @@ end;
 
 destructor TSpfBuilder.Destroy;
 begin
-  FTerms.Free;
+  FreeAndNil(FTerms);
   inherited Destroy;
 end;
 
@@ -209,7 +209,7 @@ begin
 
     Result := Issues.ToArray;
   finally
-    Issues.Free;
+    FreeAndNil(Issues);
   end;
 end;
 
@@ -230,7 +230,7 @@ begin
 
     Result := string.Join(' ', Parts.ToArray);
   finally
-    Parts.Free;
+    FreeAndNil(Parts);
   end;
 end;
 
@@ -255,7 +255,7 @@ begin
 
     Result := string.Join(' ', Parts.ToArray);
   finally
-    Parts.Free;
+    FreeAndNil(Parts);
   end;
 end;
 
