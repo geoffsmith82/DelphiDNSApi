@@ -601,7 +601,7 @@ var
   Archive: string;
   Files: TArray<string>;
   MaxIndex, I, N: Integer;
-  Base, Ext: string;
+  Base : string;
 begin
   Archive := GetArchiveDir(Name);
   EnsureDir(Archive);

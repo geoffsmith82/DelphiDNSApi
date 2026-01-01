@@ -11,6 +11,7 @@ uses
   TaurusTLS,
   TaurusTLSHeaders_evp,
   TaurusTLSHeaders_rsa,
+  TaurusTLSHeaders_ec,
   TaurusTLSHeaders_bio,
   TaurusTLSHeaders_pem,
   TaurusTLSHeaders_x509,
@@ -65,6 +66,16 @@ function Base64UrlEncode(const Bytes: TBytes): string;
 function Base64UrlEncodeStr(const S: string): string;
 
 implementation
+
+const
+  EVP_PKEY_EC = 408;
+  NID_X9_62_prime256v1 = 415;
+
+// EC functions for JWK
+type
+  PEC_KEY = Pointer;
+  PEC_GROUP = Pointer;
+  PEC_POINT = Pointer;
 
 // === Shared helpers ===
 
@@ -166,16 +177,34 @@ end;
 
 class function TAcmeKeyPair.GenerateEcP256: TAcmeKeyPair;
 var
-  Key: Pointer; // EVP_PKEY*
+  Ctx: PEVP_PKEY_CTX;
+  PKey: PEVP_PKEY;
+  Err: Integer;
 begin
-  // TODO:
-  //   - Use EVP_PKEY_CTX_new_id(EVP_PKEY_EC, nil)
-  //   - Set curve NID_X9_62_prime256v1
-  //   - EVP_PKEY_keygen(...)
-  Key := nil;
-  raise EAcmeCryptoError.Create('GenerateEcP256 not wired to OpenSSL yet');
+  Ctx := EVP_PKEY_CTX_new_id(EVP_PKEY_EC, nil);
+  if Ctx = nil then
+    raise EAcmeCryptoError.Create('EVP_PKEY_CTX_new_id failed for EC');
 
-  Result := TAcmeKeyPair.Create(Key, akEcP256);
+  try
+    Err := EVP_PKEY_keygen_init(Ctx);
+    if Err <= 0 then
+      raise EAcmeCryptoError.Create('EVP_PKEY_keygen_init failed for EC');
+
+    // Set the curve to P-256
+    Err := EVP_PKEY_CTX_ctrl(ctx, EVP_PKEY_EC, EVP_PKEY_OP_PARAMGEN, (EVP_PKEY_ALG_CTRL + 1), 415, nil);
+
+    if Err <= 0 then
+      raise EAcmeCryptoError.Create('EVP_PKEY_CTX_set_ec_paramgen_curve_nid failed');
+
+    PKey := nil;
+    Err := EVP_PKEY_keygen(Ctx, @PKey);
+    if (Err <= 0) or (PKey = nil) then
+      raise EAcmeCryptoError.Create('EVP_PKEY_keygen failed for EC');
+
+    Result := TAcmeKeyPair.Create(PKey, akEcP256);
+  finally
+    EVP_PKEY_CTX_free(Ctx);
+  end;
 end;
 
 function TAcmeKeyPair.ExportPrivateKeyPem: string;
@@ -281,7 +310,46 @@ begin
     end;
 
     akEcP256:
-      raise EAcmeCryptoError.Create('BuildJwk for EC not implemented yet');
+    begin
+      var EcKey := EVP_PKEY_get1_EC_KEY(PEVP_PKEY(FKey));
+      if EcKey = nil then
+        raise EAcmeCryptoError.Create('EVP_PKEY_get1_EC_KEY failed');
+
+      try
+        var Group := EC_KEY_get0_group(EcKey);
+        var PubKey := EC_KEY_get0_public_key(EcKey);
+
+        if Group = nil then
+          raise EAcmeCryptoError.Create('EC_KEY_get0_group failed');
+        if PubKey = nil then
+          raise EAcmeCryptoError.Create('EC_KEY_get0_public_key failed');
+
+        var CurveName := EC_GROUP_get_curve_name(Group);
+        if CurveName <> NID_X9_62_prime256v1 then
+          raise EAcmeCryptoError.Create('Unsupported EC curve');
+
+        // Get x and y coordinates
+        var Xbn: PBIGNUM := nil;
+        var Ybn: PBIGNUM := nil;
+        if EC_POINT_get_affine_coordinates_GFp(Group, PubKey, Xbn, Ybn, nil) <> 1 then
+          raise EAcmeCryptoError.Create('EC_POINT_get_affine_coordinates_GFp failed');
+
+        try
+          var XStr := BnToBase64Url(Xbn);
+          var YStr := BnToBase64Url(Ybn);
+
+          Result.AddPair('kty', 'EC');
+          Result.AddPair('crv', 'P-256');
+          Result.AddPair('x', XStr);
+          Result.AddPair('y', YStr);
+        finally
+          BN_free(Xbn);
+          BN_free(Ybn);
+        end;
+      finally
+        EC_KEY_free(EcKey);
+      end;
+    end;
   end;
 end;
 
@@ -352,7 +420,15 @@ begin
     if PKey = nil then
       raise EAcmeCryptoError.Create('PEM_read_bio_PrivateKey failed');
 
-    Result := TAcmeKeyPair.Create(PKey, akRsa2048); // RSA only for now
+    var KeyType: TAcmeKeyType;
+    case EVP_PKEY_id(PKey) of
+      EVP_PKEY_RSA: KeyType := akRsa2048;
+      EVP_PKEY_EC: KeyType := akEcP256;
+    else
+      raise EAcmeCryptoError.Create('Unsupported key type in PEM');
+    end;
+
+    Result := TAcmeKeyPair.Create(PKey, KeyType);
   finally
     BIO_free(Bio);
   end;
@@ -369,8 +445,8 @@ var
 begin
   CheckKey;
 
-  if FKeyType <> akRsa2048 then
-    raise EAcmeCryptoError.Create('SignJws: only RSA (RS256) is implemented');
+  if not (FKeyType in [akRsa2048, akEcP256]) then
+    raise EAcmeCryptoError.Create('SignJws: only RSA (RS256) and EC (ES256) are implemented');
 
   // Data to sign: ASCII/UTF-8 of "protected.payload"
   ToSign := UTF8String(ProtectedB64 + '.' + PayloadB64);
