@@ -402,7 +402,7 @@ begin
                 LDNSRecord := ParseRecord(TJSONObject(LRecord));
 
                 // Filter by type if needed
-                if (ARecordType = drtA) or (LDNSRecord.RecordType = ARecordType) then
+                if (LDNSRecord.RecordType = ARecordType) then
                   Result.Add(LDNSRecord)
                 else
                   FreeAndNil(LDNSRecord);
