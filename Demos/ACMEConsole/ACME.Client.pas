@@ -296,8 +296,7 @@ begin
     Result := asInvalid;
 end;
 
-function TAcmeClient.GetAuthorizationsForOrder(
-  const OrderObj: TJSONObject): TArray<TAcmeAuthorization>;
+function TAcmeClient.GetAuthorizationsForOrder(const OrderObj: TJSONObject): TArray<TAcmeAuthorization>;
 var
   AuthUrls: TJSONArray;
   Auths: TList<TAcmeAuthorization>;
@@ -470,10 +469,16 @@ begin
 
   // --- 3. Clean up the challenge proof ---
   for Auth in Auths do
+  begin
     if GetChallengeForAuth(Auth, PrefType, Chall) then
+    begin
       for Solver in FSolvers do
+      begin
         if Solver.CanSolve(Chall.ChallengeType) then
           Solver.Cleanup(Auth.Identifier, Chall);
+      end;
+    end;
+  end;
 end;
 
 procedure TAcmeClient.RegisterOrLoadAccount(const Email: string; const AccountFile: string);

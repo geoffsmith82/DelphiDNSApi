@@ -421,11 +421,22 @@ begin
       raise EAcmeCryptoError.Create('PEM_read_bio_PrivateKey failed');
 
     var KeyType: TAcmeKeyType;
-    case EVP_PKEY_id(PKey) of
-      EVP_PKEY_RSA: KeyType := akRsa2048;
-      EVP_PKEY_EC: KeyType := akEcP256;
+    var TestRSA: PRSA := EVP_PKEY_get1_RSA(PKey);
+    if TestRSA <> nil then
+    begin
+      KeyType := akRsa2048;
+      RSA_free(TestRSA);
+    end
     else
-      raise EAcmeCryptoError.Create('Unsupported key type in PEM');
+    begin
+      var TestEC: PEC_KEY := EVP_PKEY_get1_EC_KEY(PKey);
+      if TestEC <> nil then
+      begin
+        KeyType := akEcP256;
+        EC_KEY_free(TestEC);
+      end
+      else
+        raise EAcmeCryptoError.Create('Unsupported key type in PEM');
     end;
 
     Result := TAcmeKeyPair.Create(PKey, KeyType);

@@ -2,28 +2,13 @@ unit ACME.Client.CmdLine;
 
 interface
 
-procedure Run;
-
-implementation
-
 uses
-  System.SysUtils,
-  System.IOUtils,
-  System.Classes,
-  System.StrUtils,
   System.Generics.Collections,
-  System.JSON,
-  ACME.Client,
-  ACME.Client.Dns01,
-  ACME.Client.Types,
-  DNS.Azure,
-  DNS.Base,
-  DNS.Bunny,
-  DNS.Cloudflare,
-  DNS.DigitalOcean,
-  DNS.Google,
-  DNS.Route53,
-  DNS.Vultr;
+  ACME.Client.Types
+  {$IFDEF MSWINDOWS}
+  , ACME.Client.WinCertStore
+  {$ENDIF}
+  ;
 
 type
   TAcmeConsoleOptions = class
@@ -64,15 +49,53 @@ type
     AccountFile: string;
     OutputDir: string;
 
+    InstallToWindowsStore: Boolean;
+    WindowsStoreLocation: string; // currentuser|localmachine
+    WindowsStoreName: string;     // e.g. WebHosting
+    WindowsPfxPassword: string;
+    WindowsExportableKey: Boolean;
+
     constructor Create;
     destructor Destroy; override;
   end;
+
+
+procedure Run;
+function DefaultDirectoryUrl(const Opts: TAcmeConsoleOptions): string;
+
+implementation
+
+uses
+  System.SysUtils,
+  System.IOUtils,
+  System.Classes,
+  System.StrUtils,
+  System.JSON,
+  ACME.Client,
+  ACME.Client.Dns01,
+  DNS.Azure,
+  DNS.Base,
+  DNS.Bunny,
+  DNS.Cloudflare,
+  DNS.DigitalOcean,
+  DNS.Google,
+  DNS.Route53,
+  DNS.Vultr
+
+  ;
+
 
 constructor TAcmeConsoleOptions.Create;
 begin
   inherited Create;
   Domains := TList<string>.Create;
   PreferredChallenge := ctDns01;
+
+  InstallToWindowsStore := False;
+  WindowsStoreLocation := 'currentuser';
+  WindowsStoreName := 'WebHosting';
+  WindowsPfxPassword := '';
+  WindowsExportableKey := True;
 end;
 
 destructor TAcmeConsoleOptions.Destroy;
@@ -135,6 +158,20 @@ begin
   Writeln('                             Defaults to dns');
   Writeln('  --output-dir <dir>         Also copy PEMs into this folder');
   Writeln;
+
+  {$IFDEF MSWINDOWS}
+  Writeln('Windows certificate store (Windows only):');
+  Writeln('  --install-cert             Import issued cert into certificate store');
+  Writeln('  --windows-store-location <loc>');
+  Writeln('                             currentuser|localmachine (default currentuser)');
+  Writeln('  --windows-store-name <name>');
+  Writeln('                             Defaults to MY');
+  Writeln('  --windows-pfx-password <pwd>');
+  Writeln('                             Optional PFX password (default empty)');
+  Writeln('  --windows-no-exportable    Make private key non-exportable');
+  Writeln;
+  {$ENDIF}
+
   Writeln('DNS provider selection (pick one):');
   Writeln('  --dns-provider <name>      cloudflare|vultr|digitalocean|bunny|route53|google|azure');
   Writeln('  --dns-cloudflare           Alias for --dns-provider cloudflare');
@@ -444,6 +481,25 @@ begin
         if Value = '' then NeedValue;
         Opts.OutputDir := Value;
       end
+      else if Arg = '--install-cert' then
+        Opts.InstallToWindowsStore := True
+      else if Arg = '--windows-store-location' then
+      begin
+        if Value = '' then NeedValue;
+        Opts.WindowsStoreLocation := Value;
+      end
+      else if Arg = '--windows-store-name' then
+      begin
+        if Value = '' then NeedValue;
+        Opts.WindowsStoreName := Value;
+      end
+      else if Arg = '--windows-pfx-password' then
+      begin
+        if Value = '' then NeedValue;
+        Opts.WindowsPfxPassword := Value;
+      end
+      else if Arg = '--windows-no-exportable' then
+        Opts.WindowsExportableKey := False
       else if Arg = '--dns-cloudflare' then
         SetProvider('cloudflare')
       else if Arg = '--dns-vultr' then
@@ -607,6 +663,48 @@ begin
         LiveDir := TPath.Combine(TPath.Combine(StorageRoot, 'live'), Opts.Domains[0]);
 
         Writeln('Success. Certificate stored under: ', LiveDir);
+
+        if Opts.OutputDir <> '' then
+        begin
+          ForceDirectories(Opts.OutputDir);
+
+          TFile.WriteAllText(TPath.Combine(Opts.OutputDir, 'cert.pem'), CertPem, TEncoding.UTF8);
+          TFile.WriteAllText(TPath.Combine(Opts.OutputDir, 'privkey.pem'), KeyPem, TEncoding.UTF8);
+          TFile.WriteAllText(TPath.Combine(Opts.OutputDir, 'chain.pem'), ChainPem, TEncoding.UTF8);
+          TFile.WriteAllText(TPath.Combine(Opts.OutputDir, 'fullchain.pem'), CertPem + sLineBreak + ChainPem, TEncoding.UTF8);
+
+          Writeln('Also copied PEMs into: ', Opts.OutputDir);
+        end;
+
+        if Opts.InstallToWindowsStore then
+        begin
+          {$IFDEF MSWINDOWS}
+          var StoreLoc := Opts.WindowsStoreLocation.Trim.ToLower;
+          var LocEnum: TWindowsCertStoreLocation;
+          if (StoreLoc = '') or (StoreLoc = 'currentuser') or (StoreLoc = 'current-user') then
+            LocEnum := wslCurrentUser
+          else if (StoreLoc = 'localmachine') or (StoreLoc = 'local-machine') then
+            LocEnum := wslLocalMachine
+          else
+            raise Exception.CreateFmt('Invalid --windows-store-location: %s', [Opts.WindowsStoreLocation]);
+
+          var Thumbprint := InstallCertificatePemToWindowsStore(
+            CertPem,
+            KeyPem,
+            Opts.WindowsStoreName,
+            LocEnum,
+            Opts.WindowsPfxPassword,
+            Opts.WindowsExportableKey
+          );
+
+          if Thumbprint <> '' then
+            Writeln('Installed into Windows cert store (thumbprint): ', Thumbprint)
+          else
+            Writeln('Installed into Windows cert store.');
+          {$ELSE}
+          raise Exception.Create('--install-cert is only supported on Windows.');
+          {$ENDIF}
+        end;
 
       finally
         FreeAndNil(Client);
