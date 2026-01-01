@@ -266,6 +266,8 @@ begin
     drtSRV: Result := 8;
     drtPTR: Result := 10;
     drtCAA: Result := 9;
+  else
+    raise Exception.Create('Unknown DNS Record type');
   end;
 end;
 
