@@ -62,18 +62,23 @@ type
   public
     constructor Create(const ADirectoryUrl: string = 'https://acme-v02.api.letsencrypt.org/directory');
     destructor Destroy; override;
-
+ 
     procedure AddSolver(const Solver: IAcmeChallengeSolver);
-
+ 
     procedure RegisterOrLoadAccount(const Email: string; const AccountFile: string);
-
+ 
     // High-level: obtain cert + key & full chain as PEM
     procedure ObtainCertificate(const Domains: TArray<string>; const Email: string;
       out CertificatePem, PrivateKeyPem, ChainPem: string;
       PrefType: TChallengeType = ctDns01;
       UseStaging: Boolean = True);
-
+ 
     function ComputeDns01TxtValue(const Token: string): string;
+ 
+    // Optional overrides (useful for a certbot-like CLI)
+    property StorageRoot: string read FStorageRoot write FStorageRoot;
+    property AccountFile: string read FAccountFile write FAccountFile;
+    property DnsProviderName: string read FDnsProviderName write FDnsProviderName;
   end;
 
 implementation
@@ -566,6 +571,9 @@ end;
 
 function TAcmeClient.GetStorageRoot: string;
 begin
+  if FStorageRoot <> '' then
+    Exit(FStorageRoot);
+
   {$IFDEF MSWINDOWS}
     Result := TPath.Combine(TPath.GetPublicPath, 'AcmeClient');
   {$ELSE}
@@ -741,7 +749,10 @@ begin
     raise EAcmeClientError.Create('No domains specified for certificate request');
 
   // Decide where to store account info (simple default path)
-  AccountFile := TPath.Combine(TPath.GetHomePath, 'acme-account.json');
+  if FAccountFile <> '' then
+    AccountFile := FAccountFile
+  else
+    AccountFile := TPath.Combine(TPath.GetHomePath, 'acme-account.json');
 
   RegisterOrLoadAccount(Email, AccountFile);
 
@@ -823,7 +834,7 @@ begin
       ChainPem := CertificatePem;
     end;
 
-    PrivateKeyPem := FAccountKey.ExportPrivateKeyPem;
+    PrivateKeyPem := FCertKey.ExportPrivateKeyPem;
 
     SaveCertificateSet(
         Domains,

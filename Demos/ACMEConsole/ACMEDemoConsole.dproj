@@ -83,6 +83,7 @@
         <DCCReference Include="..\..\Source\DNS.Route53.pas"/>
         <DCCReference Include="..\..\Source\DNS.Vultr.pas"/>
         <DCCReference Include="ACME.TaurusCrypto.pas"/>
+        <DCCReference Include="ACME.Client.CmdLine.pas"/>
         <DCCReference Include="ACME.Client.Dns01.pas"/>
         <DCCReference Include="ACME.Client.Types.pas"/>
         <DCCReference Include="ACME.Client.Http01.pas"/>
