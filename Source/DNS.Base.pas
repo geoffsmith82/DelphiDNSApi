@@ -317,9 +317,6 @@ begin
   FRestRequest.Method := AMethod;
   FRestRequest.Resource := AResource;
   FRestRequest.Params.Clear;
-
-  // Set authentication headers
-  SetAuthHeaders;
 end;
 
 function TBaseDNSProvider.ExecuteRequest(const AMethod: TRESTRequestMethod;
@@ -332,12 +329,15 @@ begin
     // Configure the request
     ConfigureRequest(AMethod, AResource);
 
+    // Ensure prior request body is cleared
+    FRestRequest.ClearBody;
+
     // Add payload if present
     if Assigned(APayload) then
-    begin
-      FRestRequest.ClearBody;
       FRestRequest.AddBody(APayload, TRESTObjectOwnership.ooApp);
-    end;
+
+    // Set authentication headers (some providers sign payload)
+    SetAuthHeaders;
 
     // Execute the request
     FRestRequest.Execute;

@@ -92,13 +92,57 @@ begin
 end;
 
 function TRoute53DNSProvider.HmacSHA256(const AKey: TBytes; const AData: string): TBytes;
+const
+  BlockSize = 64; // SHA-256 block size
 var
-  Hasher: THashSHA2;
+  Key: TBytes;
+  DataBytes: TBytes;
+  I: Integer;
+  Ipad, Opad: TBytes;
+  Inner: TBytes;
+  InnerInput, OuterInput: TBytes;
+
+  function Sha256Bytes(const Data: TBytes): TBytes;
+  var
+    Hasher: THashSHA2;
+  begin
+    Hasher := THashSHA2.Create(SHA256);
+    Hasher.Update(Data);
+    Result := Hasher.HashAsBytes;
+  end;
+
 begin
-  Hasher := THashSHA2.Create(SHA256);
-  Hasher.Update(AKey);
-  Hasher.Update(TEncoding.UTF8.GetBytes(AData));
-  Result := Hasher.HashAsBytes;
+  DataBytes := TEncoding.UTF8.GetBytes(AData);
+
+  Key := Copy(AKey);
+  if Length(Key) > BlockSize then
+    Key := Sha256Bytes(Key);
+
+  SetLength(Key, BlockSize);
+
+  SetLength(Ipad, BlockSize);
+  SetLength(Opad, BlockSize);
+  for I := 0 to BlockSize - 1 do
+  begin
+    Ipad[I] := Key[I] xor $36;
+    Opad[I] := Key[I] xor $5c;
+  end;
+
+  // Inner = SHA256(i_key_pad || data)
+  SetLength(InnerInput, Length(Ipad) + Length(DataBytes));
+  if Length(Ipad) > 0 then
+    Move(Ipad[0], InnerInput[0], Length(Ipad));
+  if Length(DataBytes) > 0 then
+    Move(DataBytes[0], InnerInput[Length(Ipad)], Length(DataBytes));
+  Inner := Sha256Bytes(InnerInput);
+
+  // Result = SHA256(o_key_pad || inner)
+  SetLength(OuterInput, Length(Opad) + Length(Inner));
+  if Length(Opad) > 0 then
+    Move(Opad[0], OuterInput[0], Length(Opad));
+  if Length(Inner) > 0 then
+    Move(Inner[0], OuterInput[Length(Opad)], Length(Inner));
+  Result := Sha256Bytes(OuterInput);
 end;
 
 function TRoute53DNSProvider.CalculateSignature(const ASecretKey, ADate, ARegion, AService, AStringToSign: string): string;
@@ -131,58 +175,126 @@ begin
             AHashedCanonicalRequest;
 end;
 
-procedure TRoute53DNSProvider.SignRequest(const AMethod: TRESTRequestMethod; const AResource: string);
+procedure TRoute53DNSProvider.SignRequest(
+  const AMethod: TRESTRequestMethod;
+  const AResource: string
+);
 var
-  AmzDate, DateStamp, PayloadHash, Host, UriPath, QueryString: string;
+  AmzDate, DateStamp: string;
+  Payload, PayloadHash: string;
+  Host, UriPath: string;
   CanonicalHeaders, SignedHeaders, CredentialScope: string;
-  CanonicalRequest, HashedCanonicalRequest, StringToSign, Signature: string;
-  AuthHeader: string;
-  URI: TURI;
+  CanonicalRequest, HashedCanonicalRequest: string;
+  StringToSign, Signature, AuthHeader: string;
   NowDT: TDateTime;
-  Payload: string;
+  HashBytes: TBytes;
 begin
+  // ---- Time (UTC) ----
   NowDT := NowUTC;
-  AmzDate := ISO8601DateTime(NowDT);
-  DateStamp := ISO8601Date(NowDT);
+  AmzDate := ISO8601DateTime(NowDT); // YYYYMMDDTHHMMSSZ
+  DateStamp := ISO8601Date(NowDT);   // YYYYMMDD
 
+  // ---- Payload hash (UTF-8 string) ----
   Payload := TCustomRESTRequest(FRestRequest).GetFullRequestBody;
 
   if Payload = '' then
-    PayloadHash := 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+  begin
+    // SHA256 of empty string (required by SigV4)
+    PayloadHash :=
+      'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+  end
   else
-    PayloadHash := THashSHA2.GetHashString(Payload, SHA256);
+  begin
+    var Hasher: THashSHA2;
+    Hasher := THashSHA2.Create(SHA256);
+    Hasher.Update(TEncoding.UTF8.GetBytes(Payload));
+    HashBytes := Hasher.HashAsBytes;
+    PayloadHash := BytesToHexString(HashBytes);
+  end;
 
-  URI := TURI.Create('https://route53.amazonaws.com' + AResource);
-  Host := URI.Host;
-  UriPath := TNetEncoding.URL.EncodePath(URI.Path);
-  QueryString := TNetEncoding.URL.EncodeQuery(URI.Query);
+  // ---- URI ----
+  // Important: `TRESTRequest.Resource` may be normalized (no leading '/'),
+  // so always enforce a leading slash when building the canonical URI.
+  UriPath := '/' + AResource.TrimLeft(['/']);
+  Host := TURI.Create(FRestClient.BaseURL).Host;
 
-  CanonicalHeaders := 'host:' + Host + #10 +
-                      'x-amz-content-sha256:' + PayloadHash + #10 +
-                      'x-amz-date:' + AmzDate + #10;
+  // ---- Canonical headers (MUST match SignedHeaders) ----
+  CanonicalHeaders :=
+    'host:' + Host + #10 +
+    'x-amz-content-sha256:' + PayloadHash + #10 +
+    'x-amz-date:' + AmzDate + #10;
 
   SignedHeaders := 'host;x-amz-content-sha256;x-amz-date';
 
-  CredentialScope := DateStamp + '/' + FRegion + '/route53/aws4_request';
+  // ---- Credential scope (Route53 is ALWAYS us-east-1) ----
+  CredentialScope :=
+    DateStamp + '/us-east-1/route53/aws4_request';
 
-  CanonicalRequest := BuildCanonicalRequest(
-    RESTRequestMethodToString(AMethod),
-    UriPath, QueryString, CanonicalHeaders, SignedHeaders, PayloadHash);
+  // ---- Canonical request ----
+  CanonicalRequest :=
+    RESTRequestMethodToString(AMethod) + #10 +
+    UriPath + #10 +
+    '' + #10 +                 // empty query string
+    CanonicalHeaders + #10 +
+    SignedHeaders + #10 +
+    PayloadHash;
 
-  HashedCanonicalRequest := THashSHA2.GetHashString(CanonicalRequest, SHA256);
+  var CanonHasher: THashSHA2;
+  CanonHasher := THashSHA2.Create(SHA256);
+  CanonHasher.Update(TEncoding.UTF8.GetBytes(CanonicalRequest));
+  HashBytes := CanonHasher.HashAsBytes;
+  HashedCanonicalRequest := BytesToHexString(HashBytes);
 
-  StringToSign := BuildStringToSign(AmzDate, CredentialScope, HashedCanonicalRequest);
+  // ---- String to sign ----
+  StringToSign :=
+    'AWS4-HMAC-SHA256' + #10 +
+    AmzDate + #10 +
+    CredentialScope + #10 +
+    HashedCanonicalRequest;
 
-  Signature := CalculateSignature(FAwsSecretKey, DateStamp, FRegion, 'route53', StringToSign);
+  // ---- Signature ----
+  Signature :=
+    CalculateSignature(
+      FAwsSecretKey,
+      DateStamp,
+      'us-east-1',
+      'route53',
+      StringToSign
+    );
 
-  AuthHeader := 'AWS4-HMAC-SHA256 Credential=' + FAwsAccessKey + '/' + CredentialScope +
-                ', SignedHeaders=' + SignedHeaders +
-                ', Signature=' + Signature;
+  // ---- Authorization header ----
+  AuthHeader :=
+    'AWS4-HMAC-SHA256 Credential=' + FAwsAccessKey + '/' + CredentialScope +
+    ', SignedHeaders=' + SignedHeaders +
+    ', Signature=' + Signature;
 
-  FRestRequest.Params.Clear;
-  FRestRequest.AddParameter('Authorization', AuthHeader, pkHTTPHEADER, [poDoNotEncode]);
-  FRestRequest.AddParameter('x-amz-date', AmzDate, pkHTTPHEADER, [poDoNotEncode]);
-  FRestRequest.AddParameter('x-amz-content-sha256', PayloadHash, pkHTTPHEADER, [poDoNotEncode]);
+  // ---- Apply headers ----
+  // Keep existing params (e.g., Content-Type from AddBody), only replace auth headers.
+  FRestRequest.Params.Delete('Authorization');
+  FRestRequest.Params.Delete('x-amz-date');
+  FRestRequest.Params.Delete('x-amz-content-sha256');
+
+  // Do NOT set the Host header manually: if it is wrong, the request URL becomes invalid
+  // and AWS will reject the signature. The HTTP stack will send the correct host.
+
+  FRestRequest.AddParameter(
+    'x-amz-content-sha256',
+    PayloadHash,
+    pkHTTPHEADER,
+    [poDoNotEncode]
+  );
+  FRestRequest.AddParameter(
+    'Authorization',
+    AuthHeader,
+    pkHTTPHEADER,
+    [poDoNotEncode]
+  );
+  FRestRequest.AddParameter(
+    'x-amz-date',
+    AmzDate,
+    pkHTTPHEADER,
+    [poDoNotEncode]
+  );
 end;
 
 procedure TRoute53DNSProvider.SetAuthHeaders;
@@ -295,7 +407,7 @@ var
   i: Integer;
 begin
   Result := TObjectList<TDNSZone>.Create(True);
-  Resp := ExecuteRequest(rmGET, '/2013-04-01/hostedzones');
+  Resp := ExecuteRequest(rmGET, '/2013-04-01/hostedzone');
   try
     if (Resp is TJSONObject) then
     begin

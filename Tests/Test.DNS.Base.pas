@@ -42,6 +42,7 @@ type
     procedure TearDown;
 
     // Zone tests
+    [Test] procedure List_Zones_Does_Not_Raise;
     [Test] procedure Create_And_Delete_Zone;
     [Test] procedure List_Zones_Contains_Created_Zone;
 
@@ -102,6 +103,14 @@ begin
     end;
     FClient.Free;
   end;
+end;
+
+procedure TDnsProviderTestsBase.List_Zones_Does_Not_Raise;
+var
+  Zones: TObjectList<TDNSZone>;
+begin
+  Zones := FClient.ListZones;
+  Zones.Free;
 end;
 
 procedure TDnsProviderTestsBase.Create_And_Delete_Zone;
