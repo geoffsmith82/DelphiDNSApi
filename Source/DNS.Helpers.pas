@@ -1,4 +1,4 @@
-﻿unit DNS.Helpers;
+unit DNS.Helpers;
 
 interface
 
@@ -461,7 +461,7 @@ begin
   Result := False;
   for I := 0 to Self.Count - 1 do
   begin
-    if Self[i].Domain = aZoneName then
+    if SameText(Self[i].Domain, aZoneName) then
       Exit(True);
   end;
 end;

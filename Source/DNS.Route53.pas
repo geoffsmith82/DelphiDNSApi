@@ -11,6 +11,7 @@ uses
   System.Hash,
   System.JSON,
   System.Net.URLClient,
+  Xml.XMLIntf,
   REST.Types,
   REST.Client,
   DNS.Base;
@@ -27,6 +28,19 @@ type
     function ISO8601Date(const ADT: TDateTime): string;
     function BytesToHexString(const Bytes: TBytes): string;
 
+    function EnsureTrailingDot(const S: string): string;
+    function StripTrailingDot(const S: string): string;
+    function NormalizeRecordFqdn(const ARecordName, AZoneDomain: string): string;
+    function NormalizeRecordId(const ARecordName, AZoneDomain: string): string;
+
+    function FindChildByLocalName(const AParent: IXMLNode; const ALocalName: string): IXMLNode;
+    function GetChildTextByLocalName(const AParent: IXMLNode; const ALocalName: string): string;
+
+    function ExecuteRequestXML(const AMethod: TRESTRequestMethod; const AResource: string; const ABody: string = ''): IXMLDocument;
+
+    function AwsUriEncode(const S: string): string;
+    function CanonicalizeQueryString(const Query: string): string;
+
     function HmacSHA256(const AKey: TBytes; const AData: string): TBytes;
     function CalculateSignature(const ASecretKey, ADate, ARegion, AService, AStringToSign: string): string;
     function BuildCanonicalRequest(const AMethod: string; const ACanonicalUri, ACanonicalQuery, ACanonicalHeaders, ASignedHeaders, APayloadHash: string): string;
@@ -39,9 +53,6 @@ type
     function GetRecordTypeString(AType: TDNSRecordType): string; override;
     function ParseRecordType(const ATypeStr: string): TDNSRecordType; override;
 
-    function ParseRecord(AJson: TJSONObject): TDNSRecord; override;
-    function RecordToJSON(ARecord: TDNSRecord; const AAction: string = 'UPSERT'): TJSONObject; reintroduce;
-    function ParseZone(AJson: TJSONObject): TDNSZone; override;
   public
     constructor Create(const AAwsAccessKey, AAwsSecretKey: string; const ARegion: string = 'us-east-1'); reintroduce;
 
@@ -58,6 +69,11 @@ type
   end;
 
 implementation
+
+uses
+  Xml.XMLDoc,
+  Xml.xmldom,
+  Xml.adomxmldom;
 
 { Helper Functions }
 
@@ -145,6 +161,197 @@ begin
   Result := Sha256Bytes(OuterInput);
 end;
 
+function TRoute53DNSProvider.EnsureTrailingDot(const S: string): string;
+begin
+  Result := S;
+  if (Result <> '') and not Result.EndsWith('.') then
+    Result := Result + '.';
+end;
+
+function TRoute53DNSProvider.StripTrailingDot(const S: string): string;
+begin
+  Result := S;
+  if Result.EndsWith('.') then
+    Delete(Result, Length(Result), 1);
+end;
+
+function TRoute53DNSProvider.NormalizeRecordFqdn(const ARecordName, AZoneDomain: string): string;
+var
+  Name: string;
+  Zone: string;
+begin
+  Zone := StripTrailingDot(AZoneDomain.Trim);
+  Name := ARecordName.Trim;
+
+  if (Name = '') or SameText(Name, '@') then
+    Result := Zone
+  else
+  begin
+    Name := StripTrailingDot(Name);
+    if Name.EndsWith(Zone, True) then
+      Result := Name
+    else
+      Result := Name + '.' + Zone;
+  end;
+
+  Result := EnsureTrailingDot(Result);
+end;
+
+function TRoute53DNSProvider.NormalizeRecordId(const ARecordName, AZoneDomain: string): string;
+begin
+  Result := StripTrailingDot(NormalizeRecordFqdn(ARecordName, AZoneDomain));
+end;
+
+function TRoute53DNSProvider.FindChildByLocalName(const AParent: IXMLNode; const ALocalName: string): IXMLNode;
+var
+  I: Integer;
+  Child: IXMLNode;
+begin
+  Result := nil;
+  if not Assigned(AParent) then
+    Exit;
+
+  for I := 0 to AParent.ChildNodes.Count - 1 do
+  begin
+    Child := AParent.ChildNodes[I];
+    if SameText(Child.LocalName, ALocalName) then
+      Exit(Child);
+  end;
+end;
+
+function TRoute53DNSProvider.GetChildTextByLocalName(const AParent: IXMLNode; const ALocalName: string): string;
+var
+  Node: IXMLNode;
+begin
+  Node := FindChildByLocalName(AParent, ALocalName);
+  if Assigned(Node) then
+    Result := Node.Text
+  else
+    Result := '';
+end;
+
+function TRoute53DNSProvider.AwsUriEncode(const S: string): string;
+var
+  Bytes: TBytes;
+  B: Byte;
+  C: Char;
+const
+  Unreserved: set of AnsiChar = ['A'..'Z', 'a'..'z', '0'..'9', '-', '.', '_', '~'];
+begin
+  Result := '';
+  Bytes := TEncoding.UTF8.GetBytes(S);
+  for B in Bytes do
+  begin
+    C := Char(B);
+    if AnsiChar(C) in Unreserved then
+      Result := Result + C
+    else
+      Result := Result + '%' + IntToHex(B, 2);
+  end;
+end;
+
+function TRoute53DNSProvider.CanonicalizeQueryString(const Query: string): string;
+var
+  Parts: TArray<string>;
+  P: string;
+  EqPos: Integer;
+  NameRaw, ValueRaw: string;
+  Items: TList<TPair<string,string>>;
+  Pair: TPair<string,string>;
+  I: Integer;
+begin
+  Result := '';
+  if Query = '' then
+    Exit;
+
+  Items := TList<TPair<string,string>>.Create;
+  try
+    Parts := Query.Split(['&']);
+    for P in Parts do
+    begin
+      if P = '' then
+        Continue;
+
+      EqPos := P.IndexOf('=');
+      if EqPos < 0 then
+      begin
+        NameRaw := P;
+        ValueRaw := '';
+      end
+      else
+      begin
+        NameRaw := P.Substring(0, EqPos);
+        ValueRaw := P.Substring(EqPos + 1);
+      end;
+
+      Items.Add(TPair<string,string>.Create(AwsUriEncode(NameRaw), AwsUriEncode(ValueRaw)));
+    end;
+
+    // Sort by encoded name, then encoded value
+    var J: Integer;
+    var Tmp: TPair<string,string>;
+    for I := 0 to Items.Count - 2 do
+      for J := I + 1 to Items.Count - 1 do
+      begin
+        if (CompareText(Items[I].Key, Items[J].Key) > 0) or
+           ((CompareText(Items[I].Key, Items[J].Key) = 0) and (CompareText(Items[I].Value, Items[J].Value) > 0)) then
+        begin
+          Tmp := Items[I];
+          Items[I] := Items[J];
+          Items[J] := Tmp;
+        end;
+      end;
+
+    for I := 0 to Items.Count - 1 do
+    begin
+      Pair := Items[I];
+      if I > 0 then
+        Result := Result + '&';
+      Result := Result + Pair.Key + '=' + Pair.Value;
+    end;
+  finally
+    Items.Free;
+  end;
+end;
+
+function TRoute53DNSProvider.ExecuteRequestXML(const AMethod: TRESTRequestMethod; const AResource: string; const ABody: string): IXMLDocument;
+begin
+  Result := nil;
+
+  ConfigureRequest(AMethod, AResource);
+ 
+  FRestRequest.Accept := 'application/xml';
+  FRestRequest.AcceptCharset := 'utf-8';
+  FRestClient.ContentType := 'application/xml';
+
+  // Always clear prior body
+  FRestRequest.ClearBody;
+  if ABody <> '' then
+    FRestRequest.AddBody(ABody, TRESTContentType.ctAPPLICATION_XML);
+
+  SetAuthHeaders;
+
+  FRestRequest.Execute;
+  HandleRateLimiting;
+  CheckResponse;
+
+  if FRestResponse.Content <> '' then
+  begin
+    // Prefer a non-MSXML DOM vendor when available.
+    var XmlDoc: TXMLDocument;
+    XmlDoc := TXMLDocument.Create(nil);
+    try
+      XmlDoc.DOMVendor := GetDOMVendor('ADOM XML v4');
+    except
+      // Fallback to whatever is available on the machine
+      XmlDoc.DOMVendor := GetDOMVendor(DefaultDOMVendor);
+    end;
+    XmlDoc.LoadFromXML(FRestResponse.Content);
+    XmlDoc.Active := True;
+    Result := XmlDoc;
+  end;
+end;
+
 function TRoute53DNSProvider.CalculateSignature(const ASecretKey, ADate, ARegion, AService, AStringToSign: string): string;
 var
   kDate, kRegion, kService, kSigning, Sig: TBytes;
@@ -182,7 +389,7 @@ procedure TRoute53DNSProvider.SignRequest(
 var
   AmzDate, DateStamp: string;
   Payload, PayloadHash: string;
-  Host, UriPath: string;
+  Host, UriPath, RawQuery, CanonicalQuery: string;
   CanonicalHeaders, SignedHeaders, CredentialScope: string;
   CanonicalRequest, HashedCanonicalRequest: string;
   StringToSign, Signature, AuthHeader: string;
@@ -215,7 +422,20 @@ begin
   // ---- URI ----
   // Important: `TRESTRequest.Resource` may be normalized (no leading '/'),
   // so always enforce a leading slash when building the canonical URI.
-  UriPath := '/' + AResource.TrimLeft(['/']);
+  var ResourceWithLeadingSlash := '/' + AResource.TrimLeft(['/']);
+  var QPos := Pos('?', ResourceWithLeadingSlash);
+  if QPos > 0 then
+  begin
+    UriPath := Copy(ResourceWithLeadingSlash, 1, QPos - 1);
+    RawQuery := Copy(ResourceWithLeadingSlash, QPos + 1, MaxInt);
+  end
+  else
+  begin
+    UriPath := ResourceWithLeadingSlash;
+    RawQuery := '';
+  end;
+
+  CanonicalQuery := CanonicalizeQueryString(RawQuery);
   Host := TURI.Create(FRestClient.BaseURL).Host;
 
   // ---- Canonical headers (MUST match SignedHeaders) ----
@@ -234,7 +454,7 @@ begin
   CanonicalRequest :=
     RESTRequestMethodToString(AMethod) + #10 +
     UriPath + #10 +
-    '' + #10 +                 // empty query string
+    CanonicalQuery + #10 +
     CanonicalHeaders + #10 +
     SignedHeaders + #10 +
     PayloadHash;
@@ -312,85 +532,6 @@ begin
   Result := inherited ParseRecordType(ATypeStr);
 end;
 
-function TRoute53DNSProvider.ParseZone(AJson: TJSONObject): TDNSZone;
-var
-  LId, LName: string;
-begin
-  Result := TDNSZone.Create;
-  try
-    if AJson.TryGetValue<string>('Id', LId) then
-      Result.Id := Copy(LId, Pos('/hostedzone/', LId) + 12, MaxInt);
-
-    if AJson.TryGetValue<string>('Name', LName) then
-    begin
-      Result.Domain := LName;
-      if Result.Domain.EndsWith('.') then
-      begin
-        Result.Domain := Copy(Result.Domain, 1, Length(Result.Domain) - 2);
-      end;
-    end;
-  except
-    FreeAndNil(Result);
-    raise;
-  end;
-end;
-
-function TRoute53DNSProvider.ParseRecord(AJson: TJSONObject): TDNSRecord;
-var
-  LName, LType: string;
-  LTTL: Int64;
-  LRecords: TJSONArray;
-begin
-  Result := TDNSRecord.Create;
-  try
-    if AJson.TryGetValue<string>('Name', LName) then
-    begin
-      Result.Name := LName;
-      if Result.Name.EndsWith('.') then
-        Result.Name := Copy(Result.Name, 1, Length(Result.Name) - 2);
-    end;
-
-    if AJson.TryGetValue<string>('Type', LType) then
-      Result.RecordType := ParseRecordType(LType);
-
-    if not AJson.TryGetValue<Int64>('TTL', LTTL) then
-      LTTL := 300;
-    Result.TTL := LTTL;
-
-    if AJson.TryGetValue<TJSONArray>('ResourceRecords', LRecords) and (LRecords.Count > 0) then
-      Result.Value := LRecords.Items[0].GetValue<string>('Value');
-  except
-    FreeAndNil(Result);
-    raise;
-  end;
-end;
-
-function TRoute53DNSProvider.RecordToJSON(ARecord: TDNSRecord; const AAction: string): TJSONObject;
-var
-  Changes: TJSONArray;
-  Change, RRSet, RR: TJSONObject;
-begin
-  Changes := TJSONArray.Create;
-
-  Change := TJSONObject.Create;
-  Change.AddPair('Action', AAction);
-
-  RRSet := TJSONObject.Create;
-  RRSet.AddPair('Name', ARecord.Name + '.');
-  RRSet.AddPair('Type', GetRecordTypeString(ARecord.RecordType));
-  RRSet.AddPair('TTL', TJSONNumber.Create(ARecord.TTL));
-
-  RR := TJSONObject.Create;
-  RR.AddPair('Value', ARecord.Value);
-  RRSet.AddPair('ResourceRecords', TJSONArray.Create.Add(RR));
-
-  Change.AddPair('ResourceRecordSet', RRSet);
-  Changes.Add(Change);
-
-  Result := TJSONObject.Create;
-  Result.AddPair('Changes', Changes);
-end;
-
 constructor TRoute53DNSProvider.Create(const AAwsAccessKey, AAwsSecretKey: string; const ARegion: string);
 begin
   inherited Create('', '');
@@ -398,27 +539,78 @@ begin
   FAwsSecretKey := AAwsSecretKey;
   FRegion := ARegion;
   FRestClient.BaseURL := 'https://route53.amazonaws.com';
+  FRestRequest.Accept := 'application/xml';
+  FRestClient.ContentType := 'application/xml';
 end;
 
 function TRoute53DNSProvider.ListZones: TObjectList<TDNSZone>;
 var
-  Resp: TJSONValue;
-  Zones: TJSONArray;
-  i: Integer;
+  Doc: IXMLDocument;
+  Root: IXMLNode;
+  HostedZonesNode: IXMLNode;
+  ZoneNode: IXMLNode;
+  I: Integer;
+  Zone: TDNSZone;
+  IdText: string;
+  NameText: string;
+  SlashPos: Integer;
+  Marker: string;
+  IsTruncated: string;
+  NextMarker: string;
+  Resource: string;
 begin
   Result := TObjectList<TDNSZone>.Create(True);
-  Resp := ExecuteRequest(rmGET, '/2013-04-01/hostedzone');
-  try
-    if (Resp is TJSONObject) then
+
+  Marker := '';
+  repeat
+    Resource := '/2013-04-01/hostedzone';
+    if Marker <> '' then
+      Resource := Resource + '?marker=' + Marker;
+
+    Doc := ExecuteRequestXML(rmGET, Resource);
+    if not Assigned(Doc) then
+      Exit;
+
+    Root := Doc.DocumentElement;
+
+    HostedZonesNode := FindChildByLocalName(Root, 'HostedZones');
+    if Assigned(HostedZonesNode) then
     begin
-      Zones := TJSONObject(Resp).GetValue<TJSONArray>('HostedZones');
-      if Assigned(Zones) then
-        for i := 0 to Zones.Count - 1 do
-          Result.Add(ParseZone(Zones.Items[i] as TJSONObject));
+      for I := 0 to HostedZonesNode.ChildNodes.Count - 1 do
+      begin
+        ZoneNode := HostedZonesNode.ChildNodes[I];
+        if not SameText(ZoneNode.LocalName, 'HostedZone') then
+          Continue;
+
+        IdText := GetChildTextByLocalName(ZoneNode, 'Id');
+        NameText := GetChildTextByLocalName(ZoneNode, 'Name');
+
+        Zone := TDNSZone.Create;
+        try
+          SlashPos := LastDelimiter('/', IdText);
+          if SlashPos > 0 then
+            Zone.Id := Copy(IdText, SlashPos + 1, MaxInt)
+          else
+            Zone.Id := IdText;
+
+          Zone.Domain := StripTrailingDot(NameText);
+          Result.Add(Zone);
+        except
+          FreeAndNil(Zone);
+          raise;
+        end;
+      end;
     end;
-  finally
-    FreeAndNil(Resp);
-  end;
+
+    IsTruncated := GetChildTextByLocalName(Root, 'IsTruncated');
+    NextMarker := GetChildTextByLocalName(Root, 'NextMarker');
+
+    if SameText(IsTruncated, 'true') and (NextMarker <> '') then
+      Marker := NextMarker
+    else
+      Marker := '';
+
+  until Marker = '';
 end;
 
 function TRoute53DNSProvider.GetZone(const ADomain: string): TDNSZone;
@@ -429,7 +621,7 @@ begin
   Zones := ListZones;
   try
     for Z in Zones do
-      if SameText(Z.Domain, ADomain) or SameText(Z.Domain, ADomain + '.') then
+      if SameText(Z.Domain, ADomain) then
       begin
         Result := Z.Clone;
         Exit;
@@ -437,26 +629,49 @@ begin
   finally
     FreeAndNil(Zones);
   end;
+
   raise EDNSZoneNotFound.Create('Zone not found: ' + ADomain);
 end;
 
 function TRoute53DNSProvider.CreateZone(const ADomain: string): TDNSZone;
+const
+  XmlNs = 'https://route53.amazonaws.com/doc/2013-04-01/';
 var
-  Payload, Resp: TJSONObject;
+  Body: string;
+  Doc: IXMLDocument;
+  Root: IXMLNode;
+  HostedZoneNode: IXMLNode;
+  IdText: string;
+  NameText: string;
+  SlashPos: Integer;
 begin
-  Payload := TJSONObject.Create;
-  try
-    Payload.AddPair('Name', ADomain + '.');
-    Payload.AddPair('CallerReference', TGuid.NewGuid.ToString);
+  Body :=
+    '<CreateHostedZoneRequest xmlns="' + XmlNs + '">' +
+      '<Name>' + EnsureTrailingDot(StripTrailingDot(ADomain)) + '</Name>' +
+      '<CallerReference>' + TGuid.NewGuid.ToString + '</CallerReference>' +
+    '</CreateHostedZoneRequest>';
 
-    Resp := ExecuteRequest(rmPOST, '/2013-04-01/hostedzone', Payload) as TJSONObject;
-    try
-      Result := ParseZone(Resp.GetValue<TJSONObject>('HostedZone'));
-    finally
-      FreeAndNil(Resp);
-    end;
-  finally
-    FreeAndNil(Payload);
+  Doc := ExecuteRequestXML(rmPOST, '/2013-04-01/hostedzone', Body);
+  Root := Doc.DocumentElement;
+  HostedZoneNode := FindChildByLocalName(Root, 'HostedZone');
+  if not Assigned(HostedZoneNode) then
+    raise EDNSAPIException.Create('Route53 response missing HostedZone');
+
+  IdText := GetChildTextByLocalName(HostedZoneNode, 'Id');
+  NameText := GetChildTextByLocalName(HostedZoneNode, 'Name');
+
+  Result := TDNSZone.Create;
+  try
+    SlashPos := LastDelimiter('/', IdText);
+    if SlashPos > 0 then
+      Result.Id := Copy(IdText, SlashPos + 1, MaxInt)
+    else
+      Result.Id := IdText;
+
+    Result.Domain := StripTrailingDot(NameText);
+  except
+    FreeAndNil(Result);
+    raise;
   end;
 end;
 
@@ -466,7 +681,7 @@ var
 begin
   Zone := GetZone(ADomain);
   try
-    ExecuteRequest(rmDELETE, '/2013-04-01/hostedzone/' + Zone.Id);
+    ExecuteRequestXML(rmDELETE, '/2013-04-01/hostedzone/' + Zone.Id);
     Result := True;
   finally
     FreeAndNil(Zone);
@@ -476,28 +691,80 @@ end;
 function TRoute53DNSProvider.ListRecords(const ADomain: string; ARecordType: TDNSRecordType): TObjectList<TDNSRecord>;
 var
   Zone: TDNSZone;
-  Resp: TJSONObject;
-  RRsets: TJSONArray;
-  i: Integer;
+  Doc: IXMLDocument;
+  Root: IXMLNode;
+  SetsNode: IXMLNode;
+  SetNode: IXMLNode;
+  I: Integer;
   Rec: TDNSRecord;
+  NameText: string;
+  TypeText: string;
+  TtlText: string;
+  RecordsNode: IXMLNode;
+  RecordNode: IXMLNode;
+  ValueText: string;
+  ValueParts: TArray<string>;
 begin
   Result := TObjectList<TDNSRecord>.Create(True);
+
   Zone := GetZone(ADomain);
   try
-    Resp := ExecuteRequest(rmGET, '/2013-04-01/hostedzone/' + Zone.Id + '/rrset') as TJSONObject;
-    try
-      RRsets := Resp.GetValue<TJSONArray>('ResourceRecordSets');
-      if Assigned(RRsets) then
-        for i := 0 to RRsets.Count - 1 do
+    Doc := ExecuteRequestXML(rmGET, '/2013-04-01/hostedzone/' + Zone.Id + '/rrset');
+    Root := Doc.DocumentElement;
+    SetsNode := FindChildByLocalName(Root, 'ResourceRecordSets');
+    if not Assigned(SetsNode) then
+      Exit;
+
+    for I := 0 to SetsNode.ChildNodes.Count - 1 do
+    begin
+      SetNode := SetsNode.ChildNodes[I];
+      if not SameText(SetNode.LocalName, 'ResourceRecordSet') then
+        Continue;
+
+      NameText := StripTrailingDot(GetChildTextByLocalName(SetNode, 'Name'));
+      TypeText := GetChildTextByLocalName(SetNode, 'Type');
+      TtlText := GetChildTextByLocalName(SetNode, 'TTL');
+
+      Rec := TDNSRecord.Create;
+      try
+        Rec.Name := NameText;
+        Rec.RecordType := ParseRecordType(TypeText);
+        Rec.TTL := StrToIntDef(TtlText, 300);
+
+        RecordsNode := FindChildByLocalName(SetNode, 'ResourceRecords');
+        if Assigned(RecordsNode) then
         begin
-          Rec := ParseRecord(RRsets.Items[i] as TJSONObject);
-          if (ARecordType = drtA) or (Rec.RecordType = ARecordType) then
-            Result.Add(Rec)
-          else
-            FreeAndNil(Rec);
+          RecordNode := FindChildByLocalName(RecordsNode, 'ResourceRecord');
+          if Assigned(RecordNode) then
+          begin
+            ValueText := GetChildTextByLocalName(RecordNode, 'Value');
+
+            // Parse MX priority if present
+            if Rec.RecordType = drtMX then
+            begin
+              ValueParts := ValueText.Split([' '], 2);
+              if Length(ValueParts) = 2 then
+              begin
+                Rec.Priority := StrToIntDef(ValueParts[0], 0);
+                Rec.Value := ValueParts[1];
+              end
+              else
+                Rec.Value := ValueText;
+            end
+            else
+              Rec.Value := ValueText;
+          end;
         end;
-    finally
-      FreeAndNil(Resp);
+
+        // Filter
+        if (ARecordType = drtA) or (Rec.RecordType = ARecordType) then
+          Result.Add(Rec)
+        else
+          FreeAndNil(Rec);
+      except
+        FreeAndNil(Rec);
+        raise;
+      end;
     end;
   finally
     FreeAndNil(Zone);
@@ -505,22 +772,53 @@ begin
 end;
 
 function TRoute53DNSProvider.CreateRecord(const ADomain: string; ARecord: TDNSRecord): TDNSRecord;
+const
+  XmlNs = 'https://route53.amazonaws.com/doc/2013-04-01/';
 var
   Zone: TDNSZone;
-  Payload: TJSONObject;
+  Body: string;
+  RecordName: string;
+  RecordValue: string;
 begin
   if not ValidateRecord(ARecord) then
     raise EDNSException.Create('Invalid record');
 
   Zone := GetZone(ADomain);
   try
-    Payload := RecordToJSON(ARecord, 'UPSERT');
-    try
-      ExecuteRequest(rmPOST, '/2013-04-01/hostedzone/' + Zone.Id + '/rrset', Payload);
-      Result := ARecord.Clone;
-    finally
-      FreeAndNil(Payload);
+    RecordName := NormalizeRecordFqdn(ARecord.Name, ADomain);
+
+    RecordValue := ARecord.Value;
+    if ARecord.RecordType = drtMX then
+      RecordValue := IntToStr(ARecord.Priority) + ' ' + RecordValue;
+    if ARecord.RecordType = drtTXT then
+    begin
+      if (RecordValue <> '') and not (RecordValue.StartsWith('"') and RecordValue.EndsWith('"')) then
+        RecordValue := '"' + RecordValue + '"';
     end;
+
+    Body :=
+      '<ChangeResourceRecordSetsRequest xmlns="' + XmlNs + '">' +
+        '<ChangeBatch>' +
+          '<Changes>' +
+            '<Change>' +
+              '<Action>UPSERT</Action>' +
+              '<ResourceRecordSet>' +
+                '<Name>' + RecordName + '</Name>' +
+                '<Type>' + GetRecordTypeString(ARecord.RecordType) + '</Type>' +
+                '<TTL>' + IntToStr(ARecord.TTL) + '</TTL>' +
+                '<ResourceRecords>' +
+                  '<ResourceRecord><Value>' + RecordValue + '</Value></ResourceRecord>' +
+                '</ResourceRecords>' +
+              '</ResourceRecordSet>' +
+            '</Change>' +
+          '</Changes>' +
+        '</ChangeBatch>' +
+      '</ChangeResourceRecordSetsRequest>';
+
+    ExecuteRequestXML(rmPOST, '/2013-04-01/hostedzone/' + Zone.Id + '/rrset', Body);
+
+    Result := ARecord.Clone;
+    Result.Id := NormalizeRecordId(ARecord.Name, ADomain);
   finally
     FreeAndNil(Zone);
   end;
@@ -533,23 +831,55 @@ begin
 end;
 
 function TRoute53DNSProvider.DeleteRecord(const ADomain, ARecordId: string): Boolean;
+const
+  XmlNs = 'https://route53.amazonaws.com/doc/2013-04-01/';
 var
   Rec: TDNSRecord;
-  Payload: TJSONObject;
   Zone: TDNSZone;
+  Body: string;
+  RecordName: string;
+  RecordValue: string;
 begin
   Rec := GetRecord(ADomain, ARecordId);
   try
-    Payload := RecordToJSON(Rec, 'DELETE');
     Zone := GetZone(ADomain);
     try
-      ExecuteRequest(rmPOST, '/2013-04-01/hostedzone/' + Zone.Id + '/rrset', Payload);
+      RecordName := EnsureTrailingDot(Rec.Name);
+
+      RecordValue := Rec.Value;
+      if Rec.RecordType = drtMX then
+        RecordValue := IntToStr(Rec.Priority) + ' ' + RecordValue;
+      if Rec.RecordType = drtTXT then
+      begin
+        if (RecordValue <> '') and not (RecordValue.StartsWith('"') and RecordValue.EndsWith('"')) then
+          RecordValue := '"' + RecordValue + '"';
+      end;
+
+      Body :=
+        '<ChangeResourceRecordSetsRequest xmlns="' + XmlNs + '">' +
+          '<ChangeBatch>' +
+            '<Changes>' +
+              '<Change>' +
+                '<Action>DELETE</Action>' +
+                '<ResourceRecordSet>' +
+                  '<Name>' + RecordName + '</Name>' +
+                  '<Type>' + GetRecordTypeString(Rec.RecordType) + '</Type>' +
+                  '<TTL>' + IntToStr(Rec.TTL) + '</TTL>' +
+                  '<ResourceRecords>' +
+                    '<ResourceRecord><Value>' + RecordValue + '</Value></ResourceRecord>' +
+                  '</ResourceRecords>' +
+                '</ResourceRecordSet>' +
+              '</Change>' +
+            '</Changes>' +
+          '</ChangeBatch>' +
+        '</ChangeResourceRecordSetsRequest>';
+
+      ExecuteRequestXML(rmPOST, '/2013-04-01/hostedzone/' + Zone.Id + '/rrset', Body);
       Result := True;
     finally
-      FreeAndNil(Zone);
+     FreeAndNil(Zone);
     end;
   finally
-    FreeAndNil(Payload);
     FreeAndNil(Rec);
   end;
 end;
