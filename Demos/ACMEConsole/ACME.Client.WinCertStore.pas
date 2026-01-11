@@ -63,13 +63,20 @@ type
   PRSA = Pointer;
   PPX509 = ^PX509;
   PPEVP_PKEY = ^PEVP_PKEY;
-  PPByte = ^PByte;
 
 // EC types
 type
   PEC_KEY = Pointer;
   PEC_GROUP = Pointer;
   PEC_POINT = Pointer;
+
+// Windows crypto types
+type
+  PCRYPT_HASH_BLOB = ^CRYPT_HASH_BLOB;
+  CRYPT_HASH_BLOB = record
+    cbData: DWORD;
+    pbData: PByte;
+  end;
 
 // PKCS12
 type
@@ -176,14 +183,13 @@ begin
     raise Exception.Create('Failed to load certificate as PEM or DER');
 end;
 
-function BuildPkcs12(const CertPem, PrivateKeyPem, PfxPassword: string): TBytes;
+function BuildPkcs12(const CertPem, PrivateKeyPem, PfxPassword, domain: string): TBytes;
 var
   Cert: PX509;
   Key: TAcmeKeyPair;
   P12: PPKCS12;
   Len: Integer;
   P: PByte;
-  PassAnsi: AnsiString;
   FriendlyNameAnsi: AnsiString;
 begin
   Cert := LoadX509FromPem(CertPem);
@@ -195,9 +201,7 @@ begin
         PassPtr := nil
       else
         PassPtr := PAnsiChar(AnsiString(PfxPassword));
-
-      FriendlyNameAnsi := AnsiString('acmeconsole');
-
+      FriendlyNameAnsi := AnsiString(domain);
       // Use OpenSSL defaults for algorithms/iters by passing zeros.
       P12 := PKCS12_create(
         PassPtr,
@@ -275,7 +279,7 @@ begin
   if (StoreLocation = wslLocalMachine) and not IsUserAnAdmin then
     raise Exception.Create('Installing certificates into the Local Machine store requires administrator privileges. Please run as administrator or use --windows-store-location currentuser.');
 
-  PfxBytes := BuildPkcs12(CertPem, PrivateKeyPem, PfxPassword);
+  PfxBytes := BuildPkcs12(CertPem, PrivateKeyPem, PfxPassword, FriendlyName);
 
   if Length(PfxBytes) = 0 then
     raise Exception.Create('Generated PFX was empty');
@@ -283,14 +287,10 @@ begin
   Blob.cbData := Length(PfxBytes);
   Blob.pbData := @PfxBytes[0];
 
-  Flags := 0;
-  case StoreLocation of
-    wslCurrentUser: Flags := Flags or CRYPT_USER_KEYSET;
-    wslLocalMachine: Flags := Flags or CRYPT_MACHINE_KEYSET;
-  end;
-
+  // Use default flags for PFX import (no special keyset flags needed for temporary import)
+  var ImportFlags: DWORD := 0;
   if ExportableKey then
-    Flags := Flags or CRYPT_EXPORTABLE;
+    ImportFlags := ImportFlags or CRYPT_EXPORTABLE;
 
   var PasswordPtr: PWideChar;
   if PfxPassword = '' then
@@ -298,7 +298,12 @@ begin
   else
     PasswordPtr := PWideChar(PfxPassword);
 
-  ImportStore := PFXImportCertStore(@Blob, PasswordPtr, Flags);
+  case StoreLocation of
+    wslLocalMachine: ImportFlags := ImportFlags or CRYPT_MACHINE_KEYSET;
+    wslCurrentUser:  ImportFlags := ImportFlags or CRYPT_USER_KEYSET; // optional but explicit
+  end;
+
+  ImportStore := PFXImportCertStore(@Blob, PasswordPtr, ImportFlags);
   if ImportStore = nil then
     raise Exception.CreateFmt('PFXImportCertStore failed (%d)', [GetLastError]);
 
@@ -324,12 +329,18 @@ begin
       AddedAny := False;
       Result := '';
 
+      var PrevCertCtx: PCCERT_CONTEXT := nil;
       CertCtx := nil;
       while True do
       begin
         CertCtx := CertEnumCertificatesInStore(ImportStore, CertCtx);
         if CertCtx = nil then
           Break;
+
+        // Free the previous context
+        if PrevCertCtx <> nil then
+          CertFreeCertificateContext(PrevCertCtx);
+        PrevCertCtx := CertCtx;
 
         if not AddedAny then
         begin
@@ -342,29 +353,15 @@ begin
 
         AddedAny := True;
       end;
+      // Free the last context
+      if PrevCertCtx <> nil then
+        CertFreeCertificateContext(PrevCertCtx);
 
       if not AddedAny then
         raise Exception.Create('No certificates were imported from PFX');
 
-      // Set friendly name if provided
-      if FriendlyName <> '' then
-      begin
-        var ThumbBytes: TBytes := HexToBytes(Thumb);
-        if Length(ThumbBytes) = 20 then
-        begin
-          var FoundCert: PCCERT_CONTEXT := CertFindCertificateInStore(
-            TargetStore, X509_ASN_ENCODING or PKCS_7_ASN_ENCODING, 0,
-            CERT_FIND_SHA1_HASH, @ThumbBytes[0], nil
-          );
-          if FoundCert <> nil then
-          begin
-            var WideName: WideString := FriendlyName;
-            CertSetCertificateContextProperty(FoundCert, CERT_FRIENDLY_NAME_PROP_ID, 0, PWideChar(WideName));
-            CertFreeCertificateContext(FoundCert);
-          end;
-        end;
-      end;
-
+      // Set friendly name on the leaf certificate in the store
+     
     finally
       CertCloseStore(TargetStore, 0);
     end;
@@ -372,6 +369,8 @@ begin
     CertCloseStore(ImportStore, 0);
   end;
 end;
+
+
 
 {$ELSE}
 

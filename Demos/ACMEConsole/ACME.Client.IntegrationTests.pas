@@ -354,7 +354,7 @@ begin
     Opts.Email := 'demo@tysontechnology.com.au';
     Opts.InstallToWindowsStore := True;
     Opts.WindowsStoreLocation := 'localmachine';
-    Opts.WindowsStoreName := 'WebHosting';
+    Opts.WindowsStoreName := 'Web Hosting';
 
     Creds := TDictionary<string, string>.Create;
     try
