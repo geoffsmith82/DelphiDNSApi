@@ -4,6 +4,7 @@ interface
 
 uses
   System.SysUtils,
+  System.Classes,
   System.Generics.Collections,
   DUnitX.TestFramework,
   DNS.Base,
@@ -73,22 +74,54 @@ begin
 end;
 
 function TDnsProviderTestsBase.CreateTestZoneName: string;
+var
+  G: TGUID;
+  Token: string;
 begin
-  if SupportsSubZones then
-    Result := 'test-' + 'ddsfsds'{TTestDnsHelpers.RandomString(6)} + '.' + RootTestDomain
-  else
+//  if SupportsSubZones then
+//  begin
+//    CreateGUID(G);
+//    Token := GUIDToString(G);
+//    Token := Token.Replace('{', '').Replace('}', '').Replace('-', '');
+//    Result := 'test-' + Copy(Token, 1, 8) + '.' + RootTestDomain;
+//  end
+//  else
     Result := RootTestDomain;
 end;
 
 procedure TDnsProviderTestsBase.Setup;
+var
+  Zones: TObjectList<TDNSZone>;
 begin
   FClient := CreateClient;
   Assert.IsNotNull(FClient);
 
   FZoneName := CreateTestZoneName;
 
- // if SupportsSubZones then
- //   FClient.CreateZone(FZoneName);
+  // For providers that support sub-zones, ensure the test zone exists.
+  if SupportsSubZones then
+  begin
+    Zones := FClient.ListZones;
+    try
+      if not Zones.Contains(FZoneName) then
+      begin
+        FClient.CreateZone(FZoneName);
+
+        // Route53 can be eventually consistent; wait briefly for visibility.
+        var Attempt: Integer;
+        for Attempt := 1 to 10 do
+        begin
+          Zones.Free;
+          Zones := FClient.ListZones;
+          if Zones.Contains(FZoneName) then
+            Break;
+          TThread.Sleep(500);
+        end;
+      end;
+    finally
+      FreeAndNil(Zones);
+    end;
+  end;
 end;
 
 procedure TDnsProviderTestsBase.TearDown;
@@ -118,18 +151,47 @@ var
   Zones: TObjectList<TDNSZone>;
   LZone: TDNSZone;
 begin
+  // Creating/deleting a root zone can be destructive; only do this
+  // for providers configured to use sub-zones.
+//  if not SupportsSubZones then
+//    Exit;
+
   Zones := FClient.ListZones;
   try
     if Zones.Contains(FZoneName) then
-    begin
       FClient.DeleteZone(FZoneName);
-    end;
-    LZone := FClient.CreateZone(FZoneName);
-    Assert.IsTrue(Zones.Contains(FZoneName));
   finally
-    FreeAndNil(LZone);
-    FreeAndNil(Zones);
+    Zones.Free;
   end;
+
+  LZone := FClient.CreateZone(FZoneName);
+  try
+    Assert.IsNotEmpty(LZone.Id);
+
+    // Route53 can be eventually consistent; retry list.
+    var Found := False;
+    var Attempt: Integer;
+    for Attempt := 1 to 10 do
+    begin
+      Zones := FClient.ListZones;
+      try
+        Found := Zones.Contains(FZoneName);
+      finally
+        Zones.Free;
+      end;
+
+      if Found then
+        Break;
+
+      TThread.Sleep(500);
+    end;
+
+    Assert.IsTrue(Found);
+  finally
+    LZone.Free;
+  end;
+
+  Assert.IsTrue(FClient.DeleteZone(FZoneName));
 end;
 
 procedure TDnsProviderTestsBase.List_Zones_Contains_Created_Zone;
