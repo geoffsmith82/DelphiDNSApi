@@ -188,11 +188,12 @@
         <DCCReference Include="..\Source\DNS.Route53.pas"/>
         <DCCReference Include="..\Source\DNS.Ubiquiti.pas"/>
         <DCCReference Include="..\Source\DNS.Vultr.pas"/>
-        <DCCReference Include="Test.DNS.Vultr.pas"/>
         <DCCReference Include="..\Libs\ApiKeyStore\ApiKeyStore.pas"/>
         <DCCReference Include="..\Libs\ApiKeyStore\ApiKeyStore.Windows.pas"/>
-        <DCCReference Include="Test.DNS.DigitalOcean.pas"/>
+        <DCCReference Include="Test.DNS.Route53.pas"/>
         <DCCReference Include="Test.DNS.Bunny.pas"/>
+        <DCCReference Include="Test.DNS.DigitalOcean.pas"/>
+        <DCCReference Include="Test.DNS.Vultr.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
