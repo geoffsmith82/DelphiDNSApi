@@ -99,7 +99,7 @@ begin
   FZoneName := CreateTestZoneName;
 
   // For providers that support sub-zones, ensure the test zone exists.
-  if SupportsSubZones then
+//  if SupportsSubZones then
   begin
     Zones := FClient.ListZones;
     try
