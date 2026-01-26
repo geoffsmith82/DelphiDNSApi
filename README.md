@@ -1,4 +1,9 @@
 # Delphi DNS API Library, Demonstration App & ACME Certificate Client
+<p align="center">
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License">
+  <img src="https://img.shields.io/badge/Delphi-11%20Athens%2B-red.svg" alt="Delphi Version">
+  <img src="https://img.shields.io/badge/Platform-Cross--platform-green.svg" alt="Platform">
+</p>
 
 A comprehensive **Delphi FMX application** and **DNS API library** designed for managing DNS zones/records across multiple cloud providers.
 Now extended with a full **ACME Certificate Client** supporting **DNS-01 authentication**, enabling automated SSL/TLS certificate issuance similar to Certbot — but in native Delphi.
