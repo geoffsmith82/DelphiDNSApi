@@ -113,8 +113,8 @@ This project now supports DNS + ACME DNS-01 workflows for the following provider
 | **DigitalOcean DNS**              | ✅           | ✅                           |
 | **Microsoft Azure DNS**           | ✅           | ⚠️ (propagation can be slow) |
 | **Bunny.net**                     | ✅           | ✅                           |
-| **Cloudflare DNS**                | ⏳ Untested  | ⏳                            |
-| **AWS Route53**                   | ⏳ Untested  | ⏳                            |
+| **AWS Route53**                   | ✅           | ✅                           |
+| **Cloudflare DNS**                | ⏳ Untested   | ⏳                           |
 | **Google Cloud DNS**              | ⏳ Untested  | ⏳                            |
 | **Ubiquiti Network Application**  | ⏳ Untested  | Not Supported (LAN Only)     |
 | **GoDaddy**                       | Planned     | Planned                       |
